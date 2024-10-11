@@ -1,3 +1,4 @@
+from typing import Literal, Optional
 import os
 from os import path
 import pandas as pd
@@ -13,30 +14,31 @@ from sklearn.preprocessing import MinMaxScaler
 import torch
 from torch.utils.data.dataset import Dataset
 
-from misc.utils import divide_chunks
-from dataset.vocab import Vocabulary
+from nugpt.utils import divide_chunks
+from .vocabulary import Vocabulary
 
 logger = logging.getLogger(__name__)
 log = logger
 
 
-class TransactionDataset(Dataset):
+class NuDataset(Dataset):
     def __init__(self,
-                 mlm,
-                 user_ids=None,
-                 seq_len=10,
-                 num_bins=10,
-                 cached=True,
-                 root="./data/card/",
-                 fname="card_trans",
-                 vocab_dir="checkpoints",
-                 fextension="",
-                 nrows=None,
-                 flatten=False,
-                 stride=5,
-                 adap_thres=10 ** 8,
-                 return_labels=False,
-                 skip_user=False):
+                 add_sep: bool = False,
+                 user_ids: Optional[list[int]] = None,
+                 seq_len: int = 10,
+                 num_bins: int = 10,
+                 cached: bool = True,
+                 root: str = "./data/card/",
+                 fname: str = "card_trans",
+                 vocab_dir: str = "checkpoints",
+                 fextension: str = "",
+                 nrows: Optional[int] = None,
+                 flatten: bool = False,
+                 stride: int = 5,
+                 adap_thres: int = 10 ** 8,
+                 return_labels: bool = False,
+                 skip_agency_number: bool = False,
+    ):
 
         self.root = root
         self.fname = fname
@@ -45,9 +47,9 @@ class TransactionDataset(Dataset):
         self.cached = cached
         self.user_ids = user_ids
         self.return_labels = return_labels
-        self.skip_user = skip_user
+        self.skip_agency_number = skip_agency_number
 
-        self.mlm = mlm
+        self.add_sep = add_sep
         self.trans_stride = stride
 
         self.flatten = flatten
@@ -82,13 +84,16 @@ class TransactionDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def save_vocab(self, vocab_dir):
+    def save_vocab(self, vocab_dir: str):
         file_name = path.join(vocab_dir, f'vocab{self.fextension}.nb')
         log.info(f"saving vocab at {file_name}")
         self.vocab.save_vocab(file_name)
 
     @staticmethod
-    def label_fit_transform(column, enc_type="label"):
+    def label_fit_transform(
+        column: pd.Series,
+        enc_type: Literal["label", "time"] = "label"
+    ) -> tuple[object, pd.Series]:
         if enc_type == "label":
             mfit = LabelEncoder()
         else:
@@ -98,38 +103,31 @@ class TransactionDataset(Dataset):
         return mfit, mfit.transform(column)
 
     @staticmethod
-    def timeEncoder(X):
-        X_hm = X['Time'].str.split(':', expand=True)
-        d = pd.to_datetime(dict(year=X['Year'], month=X['Month'], day=X['Day'], hour=X_hm[0], minute=X_hm[1])).astype(
-            int)
+    def timeEncoder(X: pd.Series) -> pd.DataFrame:
+        d = pd.to_datetime(X).astype(int)
         return pd.DataFrame(d)
 
     @staticmethod
-    def amountEncoder(X):
-        amt = X.apply(lambda x: x[1:]).astype(float).apply(lambda amt: max(1, amt)).apply(math.log)
+    def amountEncoder(X: pd.Series) -> pd.DataFrame:
+        amt = X.astype(float).apply(lambda amt: max(1, amt)).apply(math.log)
         return pd.DataFrame(amt)
 
     @staticmethod
-    def fraudEncoder(X):
-        fraud = (X == 'Yes').astype(int)
-        return pd.DataFrame(fraud)
-
-    @staticmethod
-    def nanNone(X):
+    def nanNone(X: pd.Series) -> pd.Series:
         return X.where(pd.notnull(X), 'None')
 
     @staticmethod
-    def nanZero(X):
+    def nanZero(X: pd.Series) -> pd.Series:
         return X.where(pd.notnull(X), 0)
 
-    def _quantization_binning(self, data):
+    def _quantization_binning(self, data: np.ndarray):
         qtls = np.arange(0.0, 1.0 + 1 / self.num_bins, 1 / self.num_bins)
         bin_edges = np.quantile(data, qtls, axis=0)  # (num_bins + 1, num_features)
         bin_widths = np.diff(bin_edges, axis=0)
         bin_centers = bin_edges[:-1] + bin_widths / 2  # ()
         return bin_edges, bin_centers, bin_widths
 
-    def _quantize(self, inputs, bin_edges):
+    def _quantize(self, inputs: np.ndarray, bin_edges: np.ndarray):
         quant_inputs = np.zeros(inputs.shape[0])
         for i, x in enumerate(inputs):
             quant_inputs[i] = np.digitize(x, bin_edges)
@@ -148,17 +146,17 @@ class TransactionDataset(Dataset):
             columns_names = cached_data["columns"]
 
         else:
-            unique_users = self.trans_table["User"].unique()
+            unique_users = self.trans_table["Agency Number"].unique()
             columns_names = list(self.trans_table.columns)
 
             for user in tqdm.tqdm(unique_users):
-                user_data = self.trans_table.loc[self.trans_table["User"] == user]
+                user_data = self.trans_table.loc[self.trans_table["Agency Number"] == user]
                 user_trans, user_labels = [], []
                 for idx, row in user_data.iterrows():
                     row = list(row)
 
                     # assumption that user is first field
-                    skip_idx = 1 if self.skip_user else 0
+                    skip_idx = 1 if self.skip_agency_number else 0
 
                     user_trans.extend(row[skip_idx:-1])
                     user_labels.append(row[-1])
@@ -166,8 +164,8 @@ class TransactionDataset(Dataset):
                 trans_data.append(user_trans)
                 trans_labels.append(user_labels)
 
-            if self.skip_user:
-                columns_names.remove("User")
+            if self.skip_agency_number:
+                columns_names.remove("Agency Number")
 
             with open(fname, 'wb') as cache_file:
                 pickle.dump({"trans": trans_data, "labels": trans_labels, "columns": columns_names}, cache_file)
@@ -175,7 +173,7 @@ class TransactionDataset(Dataset):
         # convert to str
         return trans_data, trans_labels, columns_names
 
-    def format_trans(self, trans_lst, column_names):
+    def format_trans(self, trans_lst: pd.Series, column_names: list[str]):
         trans_lst = list(divide_chunks(trans_lst, len(self.vocab.field_keys) - 2))  # 2 to ignore isFraud and SPECIAL
         user_vocab_ids = []
 
@@ -188,7 +186,7 @@ class TransactionDataset(Dataset):
                 vocab_ids.append(vocab_id)
 
             # TODO : need to handle ncols when sep is not added
-            if self.mlm:  # and self.flatten:  # only add [SEP] for BERT + flatten scenario
+            if self.add_sep:  # and self.flatten:  # only add [SEP] for BERT + flatten scenario
                 vocab_ids.append(sep_id)
 
             user_vocab_ids.append(vocab_ids)
@@ -211,7 +209,7 @@ class TransactionDataset(Dataset):
             for jdx in range(0, len(user_row_ids) - self.seq_len + 1, self.trans_stride):
                 ids = user_row_ids[jdx:(jdx + self.seq_len)]
                 ids = [idx for ids_lst in ids for idx in ids_lst]  # flattening
-                if not self.mlm and self.flatten:  # for GPT2, need to add [BOS] and [EOS] tokens
+                if not self.add_sep and self.flatten:  # for GPT2, need to add [BOS] and [EOS] tokens
                     ids = [bos_token] + ids + [eos_token]
                 self.data.append(ids)
 
@@ -231,11 +229,11 @@ class TransactionDataset(Dataset):
             if bert:
                 ncols += 1 (for sep)
         '''
-        self.ncols = len(self.vocab.field_keys) - 2 + (1 if self.mlm else 0)
+        self.ncols = len(self.vocab.field_keys) - 2 + (1 if self.add_sep else 0)
         log.info(f"ncols: {self.ncols}")
         log.info(f"no of samples {len(self.data)}")
 
-    def get_csv(self, fname):
+    def get_csv(self, fname: str):
         data = pd.read_csv(fname, nrows=self.nrows)
         if self.user_ids:
             log.info(f'Filtering data by user ids list: {self.user_ids}...')
@@ -246,14 +244,14 @@ class TransactionDataset(Dataset):
         log.info(f"read data : {data.shape}")
         return data
 
-    def write_csv(self, data, fname):
+    def write_csv(self, data: pd.DataFrame, fname: str):
         log.info(f"writing to file {fname}")
         data.to_csv(fname, index=False)
 
     def init_vocab(self):
         column_names = list(self.trans_table.columns)
-        if self.skip_user:
-            column_names.remove("User")
+        if self.skip_agency_number:
+            column_names.remove("Agency Number")
 
         self.vocab.set_field_keys(column_names)
 
@@ -289,24 +287,23 @@ class TransactionDataset(Dataset):
         log.info(f"{data_file} is read.")
 
         log.info("nan resolution.")
-        data['Errors?'] = self.nanNone(data['Errors?'])
-        data['Is Fraud?'] = self.fraudEncoder(data['Is Fraud?'])
-        data['Zip'] = self.nanZero(data['Zip'])
-        data['Merchant State'] = self.nanNone(data['Merchant State'])
-        data['Use Chip'] = self.nanNone(data['Use Chip'])
+        data['Merchant Category Code (MCC)'] = self.nanNone(data['Merchant Category Code (MCC)'])
         data['Amount'] = self.amountEncoder(data['Amount'])
 
-        sub_columns = ['Errors?', 'MCC', 'Zip', 'Merchant State', 'Merchant City', 'Merchant Name', 'Use Chip']
+        # TODO: Add Vendor (maybe cardholder last name?)
+        # data['Vendor'] = self.nanNone(data['Vendor'])
+        # data['Agency Name'] = self.nanNone(data['Agency Name'])
+        sub_columns = ['Agency Number', 'Merchant Category Code (MCC)']
 
         log.info("label-fit-transform.")
         for col_name in tqdm.tqdm(sub_columns):
             col_data = data[col_name]
-            col_fit, col_data = self.label_fit_transform(col_data)
+            col_fit, col_data = self.label_fit_transform(col_data, enc_type="label")
             self.encoder_fit[col_name] = col_fit
             data[col_name] = col_data
 
         log.info("timestamp fit transform")
-        timestamp = self.timeEncoder(data[['Year', 'Month', 'Day', 'Time']])
+        timestamp = self.timeEncoder(data['Transaction Date'])
         timestamp_fit, timestamp = self.label_fit_transform(timestamp, enc_type="time")
         self.encoder_fit['Timestamp'] = timestamp_fit
         data['Timestamp'] = timestamp
@@ -323,18 +320,12 @@ class TransactionDataset(Dataset):
         data['Amount'] = self._quantize(coldata, bin_edges)
         self.encoder_fit["Amount-Quant"] = [bin_edges, bin_centers, bin_widths]
 
-        columns_to_select = ['User',
-                             'Card',
-                             'Timestamp',
-                             'Amount',
-                             'Use Chip',
-                             'Merchant Name',
-                             'Merchant City',
-                             'Merchant State',
-                             'Zip',
-                             'MCC',
-                             'Errors?',
-                             'Is Fraud?']
+        # TODO: Add vendor and cardholder last name
+        columns_to_select = [
+                                'Agency Number',
+                                'Merchant Category Code (MCC)',
+                                'Amount',
+                            ]
 
         self.trans_table = data[columns_to_select]
 

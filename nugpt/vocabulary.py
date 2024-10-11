@@ -52,7 +52,14 @@ class Vocabulary:
         if return_local:
             return local_id
         return global_id
-    
+
+    def get_id(self, token: str, field_name: str = "", special_token: bool = False, return_local: bool = False):
+        if special_token:
+            field_name = self.special_field_tag
+        if field_name not in self.token2id:
+            raise ValueError(f"Field name {field_name} not found in vocabulary. Fields are {self.token2id.keys()}")
+        return self.token2id[field_name][token][int(return_local)]
+
     def get_tokens(self, field_name: str):
         return self.token2id[field_name].keys()
 
@@ -79,6 +86,7 @@ class Vocabulary:
         for key, token in zip(keys, self.special_tokens):
             token = "%s_%s" % (self.special_field_tag, token)
             special_tokens_map[key] = token
+        return special_tokens_map
 
     def save_vocab(self, fname):
         self.filename = fname
@@ -87,6 +95,13 @@ class Vocabulary:
                 token, field, _ = self.id2token[idx]
                 token = f"{token}_{field}"
                 fout.write("%s\n" % token)
+
+    def get_field_keys(self, ignore_special=False):
+        keys = list(self.field_keys.keys())
+
+        if ignore_special:
+            keys.remove(self.special_field_tag)
+        return keys
 
     def __len__(self):
         return len(self.id2token)
