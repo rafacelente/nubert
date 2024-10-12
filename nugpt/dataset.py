@@ -89,6 +89,22 @@ class NuDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
+    def token_count(self):
+        return sum([len(sequence) for sequence in self.data])
+
+    def get_summary(self, verbose: bool = False):
+        info_dict = {
+            "num_samples": len(self.data),
+            "num_tokens": self.token_count(),
+            "num_features": self.ncols,
+            "features": self.trans_table.columns,
+            "num_transaction_sequences": self.num_transaction_sequences,
+            "max_seq_len": self.max_seq_len,
+            "num_bins": self.num_bins,
+        }
+        if verbose:
+            from nugpt.utils import print_dataset_summary
+            print_dataset_summary(info_dict)
     
     def save_tokenizer(self, vocab_dir: str):
         file_name = path.join(vocab_dir, f'tokenizer{self.fextension}.pkl')

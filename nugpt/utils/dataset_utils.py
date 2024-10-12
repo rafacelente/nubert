@@ -20,6 +20,13 @@ DEFAULT_RENAME_MAPPING = {
 
 DEFAULT_COLUMN_ORDER = ['AgencyNumber', 'AgencyName', 'Timestamp', 'MCC', 'Amount']
 
+def print_dataset_summary(info_dict: Dict[str, int]):
+    print("-" * 50)
+    print("Dataset Summary:")
+    for key, value in info_dict.items():
+        print(f"{key}: {value}")
+    print("-" * 50)
+
 class NuTable:    
     @staticmethod
     def clean_unnamed(

@@ -1,9 +1,9 @@
+import os
 import argparse
 import logging
 
 from transformers import (
     AutoModelForCausalLM,
-    AutoTokenizer,
     DataCollatorForLanguageModeling,
     TrainingArguments,
     Trainer,
@@ -19,17 +19,17 @@ logger = logging.getLogger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a language model on NuDataset")
     parser.add_argument("--model_name", type=str, default="TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T", help="Model identifier from huggingface.co/models")
-    parser.add_argument("--dataset_path", type=str, required=True, help="Path to the dataset")
+    parser.add_argument("--dataset_path", type=str, required=False, help="Path to the dataset")
     parser.add_argument("--output_dir", type=str, default="./output", help="Where to store the final model")
     parser.add_argument("--max_length", type=int, default=2048, help="Max sequence length")
     parser.add_argument("--num_transactions", type=int, default=10, help="Number of transactions per sequence")
-    parser.add_argument("--per_device_train_batch_size", type=int, default=4, help="Batch size per device during training")
-    parser.add_argument("--per_device_eval_batch_size", type=int, default=4, help="Batch size per device during evaluation")
+    parser.add_argument("--per_device_train_batch_size", type=int, default=1, help="Batch size per device during training")
+    parser.add_argument("--per_device_eval_batch_size", type=int, default=1, help="Batch size per device during evaluation")
     parser.add_argument("--learning_rate", type=float, default=5e-5, help="Initial learning rate")
-    parser.add_argument("--num_train_epochs", type=float, default=3.0, help="Total number of training epochs")
+    parser.add_argument("--num_train_epochs", type=float, default=1.5, help="Total number of training epochs")
     parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass")
-    parser.add_argument("--fp16", action="store_true", help="Whether to use 16-bit (mixed) precision instead of 32-bit")
+    parser.add_argument("--bf16", action="store_true", help="Whether to use 16-bit (mixed) precision instead of 32-bit")
     parser.add_argument("--test_model", action="store_true", help="Whether to test the model after training")
     return parser.parse_args()
 
@@ -42,29 +42,42 @@ def split_dataset(dataset, test_size=0.1, val_size=0.1, seed=42):
 def create_hf_dataset(data):
     return Dataset.from_dict({"input_ids": data})
 
+def resize_model_embeddings(model, tokenizer):
+    """Resize the model's embeddings to match the tokenizer's vocabulary size."""
+    model.resize_token_embeddings(len(tokenizer))
+    return model
+
 def main():
     args = parse_args()
+
+    os.environ["WANDB_PROJECT"] = "nugpt"
+
+    dataset_path = args.dataset_path if args.dataset_path else "/notebooks/nubank/"
     
     set_seed(args.seed)
     
-    # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
 
-    # Load the model and tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModelForCausalLM.from_pretrained(args.model_name)
 
-    # Load the dataset
-    full_dataset = NuDataset(
+    full_dataset = NuDataset.from_raw_data(
+        root=dataset_path,
+        fname="raw_dataset",
+        vocab_dir=f"{dataset_path}/data/vocab",
+        num_bins=100,
         model_name=args.model_name,
-        root=args.dataset_path,
-        num_transactions_sequences=args.num_transactions,
+        num_transaction_sequences=args.num_transactions,
         max_seq_len=args.max_length,
     )
+
+    print(full_dataset.summary())
+
+    tokenizer = full_dataset.tokenizer.base_tokenizer
+    model = resize_model_embeddings(model, tokenizer)
 
     train_data, val_data, test_data = split_dataset(full_dataset.data)
 
@@ -81,13 +94,14 @@ def main():
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_eval_batch_size,
         learning_rate=args.learning_rate,
-        fp16=args.fp16,
+        bf16=args.bf16,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         save_total_limit=3,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         remove_unused_columns=False,
+        report_to="wandb"
     )
 
     trainer = Trainer(
