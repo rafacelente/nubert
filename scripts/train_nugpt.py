@@ -74,7 +74,7 @@ def main():
         max_seq_len=args.max_length,
     )
 
-    print(full_dataset.summary())
+    summary = full_dataset.get_summary(verbose=True)
 
     tokenizer = full_dataset.tokenizer.base_tokenizer
     model = resize_model_embeddings(model, tokenizer)
