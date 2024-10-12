@@ -16,3 +16,5 @@ test.ipynb
 data/
 checkpoints/
 examples/
+test_*.ipynb
+preprocessed
