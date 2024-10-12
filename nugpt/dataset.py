@@ -15,47 +15,43 @@ import torch
 from torch.utils.data.dataset import Dataset
 
 from nugpt.utils import divide_chunks
-from .vocabulary import Vocabulary
+from .tokenizer import NuTokenizer
+from .utils import NuTable
 
 logger = logging.getLogger(__name__)
 log = logger
-
-
 class NuDataset(Dataset):
     def __init__(self,
-                 add_sep: bool = False,
-                 user_ids: Optional[list[int]] = None,
-                 seq_len: int = 10,
-                 num_bins: int = 10,
-                 cached: bool = True,
-                 root: str = "./data/card/",
-                 fname: str = "card_trans",
-                 vocab_dir: str = "checkpoints",
+                 model_name: str = "TinyLlama/TinyLlama_v1.1",
+                 root: str = "./data/",
+                 fname: str = "nudataset",
+                 vocab_dir: str = "./data/vocab",
                  fextension: str = "",
+                 user_ids: Optional[list[int]] = None,
+                 num_transaction_sequences: int = 5,
+                 max_seq_len: int = 2048,
+                 num_bins: int = 50,
+                 cached: bool = False,
                  nrows: Optional[int] = None,
-                 flatten: bool = False,
                  stride: int = 5,
-                 adap_thres: int = 10 ** 8,
                  return_labels: bool = False,
                  skip_agency_number: bool = False,
     ):
-
         self.root = root
         self.fname = fname
-        self.nrows = nrows
         self.fextension = f'_{fextension}' if fextension else ''
+        self.nrows = nrows
         self.cached = cached
         self.user_ids = user_ids
         self.return_labels = return_labels
         self.skip_agency_number = skip_agency_number
 
-        self.add_sep = add_sep
         self.trans_stride = stride
 
-        self.flatten = flatten
+        self.stride = stride
+        self.num_transaction_sequences = num_transaction_sequences
 
-        self.vocab = Vocabulary(adap_thres)
-        self.seq_len = seq_len
+        self.max_seq_len = max_seq_len
         self.encoder_fit = {}
 
         self.trans_table = None
@@ -63,31 +59,42 @@ class NuDataset(Dataset):
         self.labels = []
         self.window_label = []
 
+        self.tokenizer = NuTokenizer(model_name=model_name)
+
         self.ncols = None
         self.num_bins = num_bins
         self.encode_data()
-        self.init_vocab()
+        self.init_tokenizer()
         self.prepare_samples()
-        self.save_vocab(vocab_dir)
+        self.save_tokenizer(vocab_dir)
+
+    @classmethod
+    def from_raw_data(
+        cls,
+        fname: str,
+        root: str = "./data/",
+        **kwargs
+    ):
+        df = pd.read_csv(path.join(root, f"{fname}.csv"))
+        df = NuTable.clean_all_and_rename(df=df)
+        df.to_csv(path.join(root, f"{fname}.cleaned.csv"), index=False)
+        return cls(fname=f"{fname}.cleaned", root=root, **kwargs)
 
     def __getitem__(self, index):
-        if self.flatten:
             return_data = torch.tensor(self.data[index], dtype=torch.long)
-        else:
-            return_data = torch.tensor(self.data[index], dtype=torch.long).reshape(self.seq_len, -1)
-
-        if self.return_labels:
-            return_data = (return_data, torch.tensor(self.labels[index], dtype=torch.long))
-
-        return return_data
+            if self.return_labels:
+                return_data = (return_data, torch.tensor(self.labels[index], dtype=torch.long))
+            return return_data
 
     def __len__(self):
         return len(self.data)
 
-    def save_vocab(self, vocab_dir: str):
-        file_name = path.join(vocab_dir, f'vocab{self.fextension}.nb')
-        log.info(f"saving vocab at {file_name}")
-        self.vocab.save_vocab(file_name)
+    
+    def save_tokenizer(self, vocab_dir: str):
+        file_name = path.join(vocab_dir, f'tokenizer{self.fextension}.pkl')
+        log.info(f"saving tokenizer at {file_name}")
+        with open(file_name, 'wb') as f:
+            pickle.dump(self.tokenizer, f)
 
     @staticmethod
     def label_fit_transform(
@@ -103,22 +110,15 @@ class NuDataset(Dataset):
         return mfit, mfit.transform(column)
 
     @staticmethod
-    def timeEncoder(X: pd.Series) -> pd.DataFrame:
+    def time_encoder(X: pd.Series) -> pd.DataFrame:
         d = pd.to_datetime(X).astype(int)
         return pd.DataFrame(d)
 
     @staticmethod
-    def amountEncoder(X: pd.Series) -> pd.DataFrame:
+    def amount_encoder(X: pd.Series) -> pd.DataFrame:
         amt = X.astype(float).apply(lambda amt: max(1, amt)).apply(math.log)
         return pd.DataFrame(amt)
 
-    @staticmethod
-    def nanNone(X: pd.Series) -> pd.Series:
-        return X.where(pd.notnull(X), 'None')
-
-    @staticmethod
-    def nanZero(X: pd.Series) -> pd.Series:
-        return X.where(pd.notnull(X), 0)
 
     def _quantization_binning(self, data: np.ndarray):
         qtls = np.arange(0.0, 1.0 + 1 / self.num_bins, 1 / self.num_bins)
@@ -132,6 +132,7 @@ class NuDataset(Dataset):
         for i, x in enumerate(inputs):
             quant_inputs[i] = np.digitize(x, bin_edges)
         quant_inputs = quant_inputs.clip(1, self.num_bins) - 1  # Clip edges
+        log.info(f"quant_inputs: {quant_inputs}")
         return quant_inputs
 
     def user_level_data(self):
@@ -146,11 +147,11 @@ class NuDataset(Dataset):
             columns_names = cached_data["columns"]
 
         else:
-            unique_users = self.trans_table["Agency Number"].unique()
+            unique_users = self.trans_table["AgencyNumber"].unique()
             columns_names = list(self.trans_table.columns)
 
             for user in tqdm.tqdm(unique_users):
-                user_data = self.trans_table.loc[self.trans_table["Agency Number"] == user]
+                user_data = self.trans_table.loc[self.trans_table["AgencyNumber"] == user]
                 user_trans, user_labels = [], []
                 for idx, row in user_data.iterrows():
                     row = list(row)
@@ -165,111 +166,71 @@ class NuDataset(Dataset):
                 trans_labels.append(user_labels)
 
             if self.skip_agency_number:
-                columns_names.remove("Agency Number")
+                columns_names.remove("AgencyNumber")
 
             with open(fname, 'wb') as cache_file:
                 pickle.dump({"trans": trans_data, "labels": trans_labels, "columns": columns_names}, cache_file)
 
-        # convert to str
         return trans_data, trans_labels, columns_names
 
     def format_trans(self, trans_lst: pd.Series, column_names: list[str]):
-        trans_lst = list(divide_chunks(trans_lst, len(self.vocab.field_keys) - 2))  # 2 to ignore isFraud and SPECIAL
-        user_vocab_ids = []
-
-        sep_id = self.vocab.get_id(self.vocab.sep_token, special_token=True)
+        trans_lst = list(divide_chunks(trans_lst, len(column_names)))
+        user_token_ids = []
 
         for trans in trans_lst:
-            vocab_ids = []
-            for jdx, field in enumerate(trans):
-                vocab_id = self.vocab.get_id(field, column_names[jdx])
-                vocab_ids.append(vocab_id)
+            transaction = {col: val for col, val in zip(column_names, trans)}
+            token_ids = self.tokenizer.tokenize_transaction(transaction, column_names)
+            user_token_ids.append(token_ids)
 
-            # TODO : need to handle ncols when sep is not added
-            if self.add_sep:  # and self.flatten:  # only add [SEP] for BERT + flatten scenario
-                vocab_ids.append(sep_id)
-
-            user_vocab_ids.append(vocab_ids)
-
-        return user_vocab_ids
+        return user_token_ids
 
     def prepare_samples(self):
-        log.info("preparing user level data...")
-        trans_data, trans_labels, columns_names = self.user_level_data()
-
-        log.info("creating transaction samples with vocab")
-        for user_idx in tqdm.tqdm(range(len(trans_data))):
-            user_row = trans_data[user_idx]
-            user_row_ids = self.format_trans(user_row, columns_names)
-
-            user_labels = trans_labels[user_idx]
-
-            bos_token = self.vocab.get_id(self.vocab.bos_token, special_token=True)  # will be used for GPT2
-            eos_token = self.vocab.get_id(self.vocab.eos_token, special_token=True)  # will be used for GPT2
-            for jdx in range(0, len(user_row_ids) - self.seq_len + 1, self.trans_stride):
-                ids = user_row_ids[jdx:(jdx + self.seq_len)]
-                ids = [idx for ids_lst in ids for idx in ids_lst]  # flattening
-                if not self.add_sep and self.flatten:  # for GPT2, need to add [BOS] and [EOS] tokens
-                    ids = [bos_token] + ids + [eos_token]
-                self.data.append(ids)
-
-            for jdx in range(0, len(user_labels) - self.seq_len + 1, self.trans_stride):
-                ids = user_labels[jdx:(jdx + self.seq_len)]
-                self.labels.append(ids)
-
-                fraud = 0
-                if len(np.nonzero(ids)[0]) > 0:
-                    fraud = 1
-                self.window_label.append(fraud)
-
-        assert len(self.data) == len(self.labels)
-
-        '''
-            ncols = total fields - 1 (special tokens) - 1 (label)
-            if bert:
-                ncols += 1 (for sep)
-        '''
-        self.ncols = len(self.vocab.field_keys) - 2 + (1 if self.add_sep else 0)
-        log.info(f"ncols: {self.ncols}")
-        log.info(f"no of samples {len(self.data)}")
-
-    def get_csv(self, fname: str):
-        data = pd.read_csv(fname, nrows=self.nrows)
-        if self.user_ids:
-            log.info(f'Filtering data by user ids list: {self.user_ids}...')
-            self.user_ids = map(int, self.user_ids)
-            data = data[data['User'].isin(self.user_ids)]
-
-        self.nrows = data.shape[0]
-        log.info(f"read data : {data.shape}")
-        return data
-
-    def write_csv(self, data: pd.DataFrame, fname: str):
-        log.info(f"writing to file {fname}")
-        data.to_csv(fname, index=False)
-
-    def init_vocab(self):
+        log.info("preparing user-level transaction sequences...")
         column_names = list(self.trans_table.columns)
-        if self.skip_agency_number:
-            column_names.remove("Agency Number")
+        user_column = 'AgencyNumber'
 
-        self.vocab.set_field_keys(column_names)
+        # Group transactions by user
+        user_groups = self.trans_table.groupby(user_column)
+
+        for user, user_transactions in tqdm.tqdm(user_groups):
+            user_token_ids = []
+            
+            for _, transaction in user_transactions.iterrows():
+                token_ids = self.tokenizer.tokenize_transaction(transaction.to_dict(), column_names)
+                user_token_ids.append(token_ids)
+            
+            if len(user_token_ids) < self.num_transaction_sequences:
+                log.info(f"User {user} has less than {self.num_transaction_sequences} transactions.")
+                sequence = user_token_ids
+                flattened_sequence = [token for transaction in sequence for token in transaction]
+                self.data.append(flattened_sequence[:self.max_seq_len])
+            else:
+                for i in range(0, len(user_token_ids) - self.num_transaction_sequences + 1, self.stride):
+                    sequence = user_token_ids[i:i + self.num_transaction_sequences]
+                    flattened_sequence = [token for transaction in sequence for token in transaction]
+
+                    # truncate when > max_seq_len
+                    if len(flattened_sequence) > self.max_seq_len:
+                        flattened_sequence = flattened_sequence[:self.max_seq_len]
+                    
+                    self.data.append(flattened_sequence)
+
+        log.info(f"number of samples: {len(self.data)}")
+
+    def init_tokenizer(self):
+        column_names = list(self.trans_table.columns)
 
         for column in column_names:
-            unique_values = self.trans_table[column].value_counts(sort=True).to_dict()  # returns sorted
-            for val in unique_values:
-                self.vocab.set_id(val, column)
+            unique_values = self.trans_table[column].unique()
+            if column in NuTable.get_numerical_columns():
+                self.tokenizer.add_numerical_tokens(column, unique_values)
+            elif column in NuTable.get_categorical_columns():
+                self.tokenizer.add_categorical_tokens(column, unique_values)
+            else:
+                log.info(f"skipping text column {column}")
 
         log.info(f"total columns: {list(column_names)}")
-        log.info(f"total vocabulary size: {len(self.vocab.id2token)}")
-
-        for column in self.vocab.field_keys:
-            vocab_size = len(self.vocab.token2id[column])
-            log.info(f"column : {column}, vocab size : {vocab_size}")
-
-            if vocab_size > self.vocab.adap_thres:
-                log.info(f"\tsetting {column} for adaptive softmax")
-                self.vocab.adap_sm_cols.add(column)
+        log.info(f"total vocabulary size: {self.tokenizer.get_vocab_size()}")
 
     def encode_data(self):
         dirname = path.join(self.root, "preprocessed")
@@ -286,48 +247,28 @@ class NuDataset(Dataset):
         data = self.get_csv(data_file)
         log.info(f"{data_file} is read.")
 
-        log.info("nan resolution.")
-        data['Merchant Category Code (MCC)'] = self.nanNone(data['Merchant Category Code (MCC)'])
-        data['Amount'] = self.amountEncoder(data['Amount'])
-
-        # TODO: Add Vendor (maybe cardholder last name?)
-        # data['Vendor'] = self.nanNone(data['Vendor'])
-        # data['Agency Name'] = self.nanNone(data['Agency Name'])
-        sub_columns = ['Agency Number', 'Merchant Category Code (MCC)']
-
-        log.info("label-fit-transform.")
-        for col_name in tqdm.tqdm(sub_columns):
-            col_data = data[col_name]
-            col_fit, col_data = self.label_fit_transform(col_data, enc_type="label")
-            self.encoder_fit[col_name] = col_fit
-            data[col_name] = col_data
+        for column in data.columns:
+            if data[column].dtype == 'object':
+                data[column] = data[column].fillna('Unknown')
+            else:
+                data[column] = data[column].fillna(0)
 
         log.info("timestamp fit transform")
-        timestamp = self.timeEncoder(data['Transaction Date'])
+        timestamp = self.time_encoder(data['Timestamp'])
         timestamp_fit, timestamp = self.label_fit_transform(timestamp, enc_type="time")
         self.encoder_fit['Timestamp'] = timestamp_fit
         data['Timestamp'] = timestamp
 
-        log.info("timestamp quant transform")
-        coldata = np.array(data['Timestamp'])
-        bin_edges, bin_centers, bin_widths = self._quantization_binning(coldata)
-        data['Timestamp'] = self._quantize(coldata, bin_edges)
-        self.encoder_fit["Timestamp-Quant"] = [bin_edges, bin_centers, bin_widths]
+        data['Amount'] = self.amount_encoder(data['Amount'])
 
-        log.info("amount quant transform")
-        coldata = np.array(data['Amount'])
-        bin_edges, bin_centers, bin_widths = self._quantization_binning(coldata)
-        data['Amount'] = self._quantize(coldata, bin_edges)
-        self.encoder_fit["Amount-Quant"] = [bin_edges, bin_centers, bin_widths]
+        for column in ['Amount', 'Timestamp']:
+            if column in data.columns:
+                coldata = np.array(data[column])
+                bin_edges, _, _ = self._quantization_binning(coldata)
+                data[column] = self._quantize(coldata, bin_edges)
+                self.encoder_fit[f"{column}_bins"] = bin_edges
 
-        # TODO: Add vendor and cardholder last name
-        columns_to_select = [
-                                'Agency Number',
-                                'Merchant Category Code (MCC)',
-                                'Amount',
-                            ]
-
-        self.trans_table = data[columns_to_select]
+        self.trans_table = data
 
         log.info(f"writing cached csv to {path.join(dirname, fname)}")
         if not path.exists(dirname):
@@ -337,3 +278,13 @@ class NuDataset(Dataset):
         encoder_fname = path.join(dirname, f'{self.fname}{self.fextension}.encoder_fit.pkl')
         log.info(f"writing cached encoder fit to {encoder_fname}")
         pickle.dump(self.encoder_fit, open(encoder_fname, "wb"))
+
+    def get_csv(self, fname: str):
+        data = pd.read_csv(fname, nrows=self.nrows)
+        self.nrows = data.shape[0]
+        log.info(f"read data : {data.shape}")
+        return data
+
+    def write_csv(self, data: pd.DataFrame, fname: str):
+        log.info(f"writing to file {fname}")
+        data.to_csv(fname, index=False)
