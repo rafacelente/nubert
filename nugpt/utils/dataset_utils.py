@@ -65,8 +65,9 @@ class NuTable:
     def clean_dates(
             df: pd.DataFrame,
         ):
-        # clean dates that are not in the format YYYY-MM-DD
-        df['Transaction Date'] = df['Transaction Date'].apply(lambda x: x if '-' in x else None)
+        # clean dates that are not in the format YYYY/MM/DD
+        df.dropna(subset=['Transaction Date'], inplace=True)
+        df['Transaction Date'] = df['Transaction Date'].apply(lambda x: x if '/' in x else None)
         df.dropna(subset=['Transaction Date'], inplace=True)
         df['Transaction Date'] = pd.to_datetime(df['Transaction Date'])
         return df
