@@ -19,12 +19,12 @@ class AmountDataset(NuDataset):
         self.prediction_column = prediction_column
         self.labels = []
         super().__init__(use_pretrained_tokenizer=True, *args, **kwargs)
-        
+
     def __getitem__(self, index):
-            return (
-                torch.tensor(self.data[index], dtype=torch.long),
-                torch.tensor(self.labels[index], dtype=torch.float)
-            )
+            return {
+                "text": torch.tensor(self.data[index], dtype=torch.long),
+                "label": torch.nn.functional.one_hot(torch.tensor(self.labels[index], dtype=torch.long), num_classes=self.num_bins)
+            }
 
     def __len__(self):
         return len(self.data)

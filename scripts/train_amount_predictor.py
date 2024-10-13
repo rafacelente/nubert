@@ -42,7 +42,9 @@ def split_dataset(dataset, test_size=0.1, val_size=0.1, seed=42):
     return train, val, test
 
 def create_hf_dataset(data):
-    return Dataset.from_dict({"input_ids": data})
+    input_ids = [example["text"] for example in data]
+    labels = [example["label"] for example in data]
+    return Dataset.from_dict({"input_ids": input_ids, "labels": labels})
 
 
 def main():
