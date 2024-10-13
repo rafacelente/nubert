@@ -51,9 +51,3 @@ def test_init_tokenizer(mock_csv):
 def test_prepare_samples(mock_csv):
     dataset = NuDataset(root=str(mock_csv.parent), fname="test_data", seq_len=2, stride=1)
     assert len(dataset.data) > 0
-
-def test_format_trans(mock_csv):
-    dataset = NuDataset(root=str(mock_csv.parent), fname="test_data")
-    trans_data, _, columns_names = dataset.user_level_data()
-    user_token_ids = dataset.format_trans(trans_data[0], columns_names)
-    assert len(user_token_ids) > 0

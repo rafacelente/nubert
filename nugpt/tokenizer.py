@@ -1,18 +1,15 @@
 from transformers import AutoTokenizer
 from typing import List, Dict, Any, Union
 import numpy as np
+from nugpt.utils import INVERSE_RENAME_MAPPING
 
 class NuTokenizer:
     def __init__(self, model_name: str = "TinyLlama/TinyLlama_v1.1"):
         self.base_tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.special_tokens = {
-            "pad_token": "<PAD>",
-            "sep_token": "<SEP>",
-            "cls_token": "<CLS>",
-            "mask_token": "<MASK>",
-            "bos_token": "<s>",
-            "eos_token": "</s>",
-            "unk_token": "<unk>",
+            "pad_token": "[PAD]",
+            "sep_token": "[SEP]",
+            "cls_token": "[CLS]",
         }
         self.add_special_tokens()
         self.categorical_encoders = {}
@@ -39,9 +36,12 @@ class NuTokenizer:
         return self.numerical_encoders[column][value]
     
     def tokenize_transaction(self, transaction: Dict[str, Any], column_order: List[str]) -> List[int]:
-        tokens = [self.special_tokens["bos_token"]]
+        # [CLS] field1: value1 [SEP] field2: value2 [SEP] ... fieldN: valueN [SEP] [SEP]
+        tokens = [self.special_tokens["cls_token"]]
         
         for column in column_order:
+            index_tokens = self.base_tokenizer.tokenize(f"{INVERSE_RENAME_MAPPING[column]}:")
+            tokens.extend(index_tokens)
             value = transaction[column]
             if column in self.categorical_encoders:
                 token = self.encode_categorical(column, value)
@@ -58,10 +58,11 @@ class NuTokenizer:
             tokens.append(token)
             tokens.append(self.special_tokens["sep_token"])
         
-        tokens.append(self.special_tokens["eos_token"])
+        tokens.append(self.special_tokens["sep_token"]) 
         return self.base_tokenizer.convert_tokens_to_ids(tokens)
     
     def tokenize_sequence(self, transactions: List[Dict[str, Any]], column_order: List[str]) -> List[int]:
+        # [CLS] transaction1_field1: value1 [SEP] ... transaction1_fieldN: valueN [SEP] [SEP] [CLS] transaction2_field1: value1 [SEP] ... transaction2_fieldN: valueN [SEP] [SEP] ...
         sequence_tokens = []
         for transaction in transactions:
             sequence_tokens.extend(self.tokenize_transaction(transaction, column_order))

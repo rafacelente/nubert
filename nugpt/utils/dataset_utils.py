@@ -9,16 +9,22 @@ DATA_TYPE_MAPPING = {
     "text": ["MCC", "Vendor", "AgencyName"],
     "categorical": ["AgencyNumber"],
     "numerical": ["Amount", "Timestamp"],
+    "index": "AgencyName",
 }
 
 DEFAULT_RENAME_MAPPING = {
     'Agency Number': 'AgencyNumber',
     'Transaction Date': 'Timestamp',
     'Merchant Category Code (MCC)': 'MCC',
+    'Vendor': 'Vendor',
+    'Amount': 'Amount',
     'Agency Name': 'AgencyName',
 }
 
-DEFAULT_COLUMN_ORDER = ['AgencyNumber', 'AgencyName', 'Timestamp', 'MCC', 'Amount']
+INVERSE_RENAME_MAPPING = {v: k for k, v in DEFAULT_RENAME_MAPPING.items()}
+
+DEFAULT_COLUMN_ORDER = ['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']
+
 
 def print_dataset_summary(info_dict: Dict[str, int]):
     print("-" * 50)

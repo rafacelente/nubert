@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a language model on NuDataset")
-    parser.add_argument("--model_name", type=str, default="TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T", help="Model identifier from huggingface.co/models")
+    parser.add_argument("--model_name", type=str, default="distilbert/distilbert-base-uncased", help="Model identifier from huggingface.co/models")
     parser.add_argument("--dataset_path", type=str, required=False, help="Path to the dataset")
     parser.add_argument("--output_dir", type=str, default="./output", help="Where to store the final model")
-    parser.add_argument("--max_length", type=int, default=2048, help="Max sequence length")
-    parser.add_argument("--num_transactions", type=int, default=10, help="Number of transactions per sequence")
+    parser.add_argument("--max_length", type=int, default=512, help="Max sequence length")
+    parser.add_argument("--num_transactions", type=int, default=5, help="Number of transactions per sequence")
     parser.add_argument("--per_device_train_batch_size", type=int, default=1, help="Batch size per device during training")
     parser.add_argument("--per_device_eval_batch_size", type=int, default=1, help="Batch size per device during evaluation")
     parser.add_argument("--learning_rate", type=float, default=5e-5, help="Initial learning rate")
@@ -47,13 +47,6 @@ def resize_model_embeddings(model, tokenizer):
     """Resize the model's embeddings to match the tokenizer's vocabulary size."""
     model.resize_token_embeddings(len(tokenizer))
     return model
-
-def generate_text(model, tokenizer, prompt=None, max_length=2048):
-    if prompt is None:
-        prompt = tokenizer.special_tokens_map["bos_token"]
-    input_ids = tokenizer.encode(prompt, return_tensors="pt")
-    output_ids = model.generate(input_ids, max_length=max_length)
-    return tokenizer.decode(output_ids[0], skip_special_tokens=True)
 
 def main():
     args = parse_args()
@@ -96,7 +89,7 @@ def main():
     val_dataset = create_hf_dataset(val_data)
     test_dataset = create_hf_dataset(test_data)
 
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True)
 
     training_args = TrainingArguments(
         output_dir=args.output_dir,
@@ -109,11 +102,10 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         save_total_limit=1,
         evaluation_strategy="epoch",
-        load_best_model_at_end=True,
         remove_unused_columns=False,
         report_to="wandb",
         run_name=f"{args.model_name}-nugpt",
-        save_strategy = "no",
+        save_strategy = "epoch",
         load_best_model_at_end=True,
     )
 

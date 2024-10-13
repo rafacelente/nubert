@@ -16,7 +16,7 @@ from torch.utils.data.dataset import Dataset
 
 from nugpt.utils import divide_chunks
 from .tokenizer import NuTokenizer
-from .utils import NuTable
+from .utils import NuTable, DATA_TYPE_MAPPING
 
 logger = logging.getLogger(__name__)
 log = logger
@@ -148,46 +148,7 @@ class NuDataset(Dataset):
         for i, x in enumerate(inputs):
             quant_inputs[i] = np.digitize(x, bin_edges)
         quant_inputs = quant_inputs.clip(1, self.num_bins) - 1  # Clip edges
-        log.info(f"quant_inputs: {quant_inputs}")
         return quant_inputs
-
-    def user_level_data(self):
-        fname = path.join(self.root, f"preprocessed/{self.fname}.user{self.fextension}.pkl")
-        trans_data, trans_labels = [], []
-
-        if self.cached and path.isfile(fname):
-            log.info(f"loading cached user level data from {fname}")
-            cached_data = pickle.load(open(fname, "rb"))
-            trans_data = cached_data["trans"]
-            trans_labels = cached_data["labels"]
-            columns_names = cached_data["columns"]
-
-        else:
-            unique_users = self.trans_table["AgencyNumber"].unique()
-            columns_names = list(self.trans_table.columns)
-
-            for user in tqdm.tqdm(unique_users):
-                user_data = self.trans_table.loc[self.trans_table["AgencyNumber"] == user]
-                user_trans, user_labels = [], []
-                for idx, row in user_data.iterrows():
-                    row = list(row)
-
-                    # assumption that user is first field
-                    skip_idx = 1 if self.skip_agency_number else 0
-
-                    user_trans.extend(row[skip_idx:-1])
-                    user_labels.append(row[-1])
-
-                trans_data.append(user_trans)
-                trans_labels.append(user_labels)
-
-            if self.skip_agency_number:
-                columns_names.remove("AgencyNumber")
-
-            with open(fname, 'wb') as cache_file:
-                pickle.dump({"trans": trans_data, "labels": trans_labels, "columns": columns_names}, cache_file)
-
-        return trans_data, trans_labels, columns_names
 
     def format_trans(self, trans_lst: pd.Series, column_names: list[str]):
         trans_lst = list(divide_chunks(trans_lst, len(column_names)))
@@ -203,7 +164,7 @@ class NuDataset(Dataset):
     def prepare_samples(self):
         log.info("preparing user-level transaction sequences...")
         column_names = list(self.trans_table.columns)
-        user_column = 'AgencyNumber'
+        user_column = DATA_TYPE_MAPPING["index"]
 
         # Group transactions by user
         user_groups = self.trans_table.groupby(user_column)
