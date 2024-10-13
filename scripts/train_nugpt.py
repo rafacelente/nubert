@@ -109,7 +109,6 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         save_total_limit=1,
         evaluation_strategy="epoch",
-        save_strategy="epoch",
         load_best_model_at_end=True,
         remove_unused_columns=False,
         report_to="wandb",
