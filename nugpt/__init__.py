@@ -1,2 +1,2 @@
 from .tokenizer import NuTokenizer
-from .dataset import NuDataset
+from .datasets.nudataset import NuDataset

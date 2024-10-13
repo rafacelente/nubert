@@ -15,11 +15,12 @@ import torch
 from torch.utils.data.dataset import Dataset
 
 from nugpt.utils import divide_chunks
-from .tokenizer import NuTokenizer
-from .utils import NuTable, DATA_TYPE_MAPPING
+from ..tokenizer import NuTokenizer
+from ..utils import NuTable, DATA_TYPE_MAPPING
 
 logger = logging.getLogger(__name__)
 log = logger
+
 class NuDataset(Dataset):
     def __init__(self,
                  model_name: str = "TinyLlama/TinyLlama_v1.1",
@@ -33,9 +34,10 @@ class NuDataset(Dataset):
                  num_bins: int = 50,
                  cached: bool = False,
                  nrows: Optional[int] = None,
-                 stride: int = 5,
+                 stride: int = 2,
                  return_labels: bool = False,
                  skip_agency_number: bool = False,
+                 use_pretrained_tokenizer: bool = False,
     ):
         self.root = root
         self.fname = fname
@@ -64,7 +66,8 @@ class NuDataset(Dataset):
         self.ncols = None
         self.num_bins = num_bins
         self.encode_data()
-        self.init_tokenizer()
+        if not use_pretrained_tokenizer:
+            self.init_tokenizer()
         self.prepare_samples()
         self.save_tokenizer(vocab_dir)
 

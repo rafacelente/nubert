@@ -4,7 +4,10 @@ import numpy as np
 from nugpt.utils import INVERSE_RENAME_MAPPING
 
 class NuTokenizer:
-    def __init__(self, model_name: str = "TinyLlama/TinyLlama_v1.1"):
+    def __init__(
+            self,
+            model_name: str = "TinyLlama/TinyLlama_v1.1"
+        ):
         self.base_tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.special_tokens = {
             "pad_token": "[PAD]",
@@ -14,7 +17,8 @@ class NuTokenizer:
         self.add_special_tokens()
         self.categorical_encoders = {}
         self.numerical_encoders = {}
-        
+
+
     def add_special_tokens(self):
         special_tokens_dict = {k: v for k, v in self.special_tokens.items() if v not in self.base_tokenizer.vocab}
         self.base_tokenizer.add_special_tokens(special_tokens_dict)
