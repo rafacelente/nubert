@@ -3,7 +3,7 @@ import argparse
 import logging
 
 from transformers import (
-    AutoModelForCausalLM,
+    AutoModelForMaskedLM,
     DataCollatorForLanguageModeling,
     TrainingArguments,
     Trainer,
@@ -64,7 +64,7 @@ def main():
         level=logging.INFO,
     )
 
-    model = AutoModelForCausalLM.from_pretrained(args.model_name)
+    model = AutoModelForMaskedLM.from_pretrained(args.model_name)
 
     full_dataset = NuDataset.from_raw_data(
         root=dataset_path,
@@ -104,7 +104,7 @@ def main():
         evaluation_strategy="epoch",
         remove_unused_columns=False,
         report_to="wandb",
-        run_name=f"{args.model_name}-nugpt",
+        run_name=f"nubert-distil",
         save_strategy = "epoch",
         load_best_model_at_end=True,
     )
