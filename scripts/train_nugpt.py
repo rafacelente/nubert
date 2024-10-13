@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass")
     parser.add_argument("--bf16", action="store_true", help="Whether to use 16-bit (mixed) precision instead of 32-bit")
     parser.add_argument("--test_model", action="store_true", help="Whether to test the model after training")
+    parser.add_argument("--from_pretrained", action="store_true", help="Whether to load the model from a pretrained checkpoint")
     return parser.parse_args()
 
 def split_dataset(dataset, test_size=0.1, val_size=0.1, seed=42):
@@ -47,10 +48,18 @@ def resize_model_embeddings(model, tokenizer):
     model.resize_token_embeddings(len(tokenizer))
     return model
 
+def generate_text(model, tokenizer, prompt=None, max_length=2048):
+    if prompt is None:
+        prompt = tokenizer.special_tokens_map["bos_token"]
+    input_ids = tokenizer.encode(prompt, return_tensors="pt")
+    output_ids = model.generate(input_ids, max_length=max_length)
+    return tokenizer.decode(output_ids[0], skip_special_tokens=True)
+
 def main():
     args = parse_args()
 
     os.environ["WANDB_PROJECT"] = "nugpt"
+    os.environ["WANDB_LOG_MODEL"] = "end"
 
     dataset_path = args.dataset_path if args.dataset_path else "/notebooks/nubank/"
     
@@ -77,6 +86,8 @@ def main():
     summary = full_dataset.get_summary(verbose=True)
 
     tokenizer = full_dataset.tokenizer.base_tokenizer
+    # save tokenizer
+    tokenizer.save_pretrained(args.output_dir)
     model = resize_model_embeddings(model, tokenizer)
 
     train_data, val_data, test_data = split_dataset(full_dataset.data)
@@ -96,12 +107,15 @@ def main():
         learning_rate=args.learning_rate,
         bf16=args.bf16,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        save_total_limit=3,
+        save_total_limit=1,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         remove_unused_columns=False,
-        report_to="wandb"
+        report_to="wandb",
+        run_name=f"{args.model_name}-nugpt",
+        save_strategy = "no",
+        load_best_model_at_end=True,
     )
 
     trainer = Trainer(
