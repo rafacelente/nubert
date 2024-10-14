@@ -6,9 +6,9 @@ logger = getLogger(__name__)
 log = logger
 
 DATA_TYPE_MAPPING = {
-    "text": ["MCC", "Vendor", "AgencyName"],
+    "text": ["MCC", "Vendor", "AgencyName", "Amount"],
     "categorical": ["AgencyNumber"],
-    "numerical": ["Amount", "Timestamp"],
+    "numerical": ["Timestamp"],
     "index": "AgencyName",
 }
 

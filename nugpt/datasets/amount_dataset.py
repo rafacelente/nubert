@@ -1,5 +1,5 @@
 from os import path
-import math
+import numpy as np
 import pandas as pd
 import tqdm
 import logging
@@ -39,8 +39,6 @@ class AmountDataset(NuDataset):
         trans_lst = list(divide_chunks(trans_lst, len(column_names)))
         user_token_ids = []
 
-        column_names = [col for col in column_names if col != self.prediction_column]
-
         for trans in trans_lst:
             transaction = {col: val for col, val in zip(column_names, trans)}
             token_ids = self.tokenizer.tokenize_transaction(transaction, column_names)
@@ -50,37 +48,29 @@ class AmountDataset(NuDataset):
     
     def prepare_samples(self):
         log.info("preparing user-level transaction sequences...")
-        column_names = [column for column in list(self.trans_table.columns) if column != self.prediction_column]
+        column_names = list(self.trans_table.columns)
         user_column = DATA_TYPE_MAPPING["index"]
 
-        # Group transactions by user
+        # Group transactions by user and filter < self.num_transactions
+        self.trans_table = self.trans_table.groupby(user_column).filter(lambda x: len(x) >= self.num_transaction_sequences)
         user_groups = self.trans_table.groupby(user_column)
 
-        for user, user_transactions in tqdm.tqdm(user_groups):
-            user_token_ids = []
-            
-            for i, transaction in user_transactions.iterrows():
-                token_ids = self.tokenizer.tokenize_transaction(transaction.to_dict(), column_names)
-                user_token_ids.append(token_ids)
-            
-            if len(user_token_ids) < self.num_transaction_sequences:
-                log.info(f"User {user} has less than {self.num_transaction_sequences} transactions.")
-                sequence = user_token_ids
-                flattened_sequence = [token for transaction in sequence for token in transaction]
-                self.data.append(flattened_sequence[:self.max_seq_len])
-                self.labels.append(user_transactions.iloc[i][self.prediction_column])
-            else:
-                for i in range(0, len(user_token_ids) - self.num_transaction_sequences + 1, self.stride):
-                    sequence = user_token_ids[i:i + self.num_transaction_sequences]
-                    flattened_sequence = [token for transaction in sequence for token in transaction]
+        for user, user_transactions in user_groups:
+            user_transactions.sort_values("Timestamp", inplace=True)
+            grouper = np.arange(user_transactions.shape[0]) // self.num_transaction_sequences
+            for _, group in user_transactions.groupby(grouper):
+                flattened_sequence = []
+                for sequence_i, (_, transaction) in enumerate(group.iterrows()):
+                    if sequence_i == self.num_transaction_sequences - 1:
+                        self.labels.append(transaction['Amount'])
+                        flattened_sequence.extend(self.tokenizer.tokenize_transaction_with_mask_amount(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
+                    else:
+                        flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
 
-                    # truncate when > max_seq_len
-                    if len(flattened_sequence) > self.max_seq_len:
-                        flattened_sequence = flattened_sequence[:self.max_seq_len]
-                    
-                    self.data.append(flattened_sequence)
-                    self.labels.append(user_transactions.iloc[i][self.prediction_column])
+                # Truncate when > max_seq_len
+                if len(flattened_sequence) > self.max_seq_len:
+                    flattened_sequence = flattened_sequence[:self.max_seq_len]
+
+                self.data.append(flattened_sequence)
 
         log.info(f"number of samples: {len(self.data)}")
-
-    

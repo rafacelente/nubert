@@ -138,7 +138,7 @@ class NuDataset(Dataset):
 
     @staticmethod
     def amount_encoder(X: pd.Series) -> pd.DataFrame:
-        amt = X.apply(lambda x: x.strip("$()").replace(",", "")).astype(float)
+        amt = X.apply(lambda x: str(x).strip("$()").replace(",", "")).astype(float)
         return pd.DataFrame(amt)
     
     def _time_binning(self, data: np.ndarray):
@@ -192,6 +192,7 @@ class NuDataset(Dataset):
 
         for user, user_transactions in tqdm.tqdm(user_groups):
             user_token_ids = []
+            user_transactions.sort_values(by='Timestamp', inplace=True)
             
             for _, transaction in user_transactions.iterrows():
                 token_ids = self.tokenizer.tokenize_transaction(transaction.to_dict(), column_names)
