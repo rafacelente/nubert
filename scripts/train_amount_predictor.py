@@ -63,10 +63,11 @@ def main():
         level=logging.INFO,
     )
 
-    num_bins = 100
+    num_amount_bins = 100
+    num_timestamp_bins = 100
     model = AutoModelForSequenceClassification.from_pretrained(
         args.model_name,
-        num_labels=num_bins,
+        num_labels=num_timestamp_bins,
     )
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
@@ -74,7 +75,8 @@ def main():
         root=dataset_path,
         fname="amount_dataset_raw",
         vocab_dir=f"{dataset_path}/data/vocab",
-        num_bins=num_bins,
+        num_amount_bins=num_amount_bins,
+        num_timestamp_bins=num_timestamp_bins,
         model_name=args.model_name,
         num_transaction_sequences=args.num_transactions,
         max_seq_len=args.max_length

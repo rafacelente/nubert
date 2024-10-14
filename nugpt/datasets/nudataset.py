@@ -31,7 +31,8 @@ class NuDataset(Dataset):
                  user_ids: Optional[list[int]] = None,
                  num_transaction_sequences: int = 5,
                  max_seq_len: int = 2048,
-                 num_bins: int = 50,
+                 num_timestamp_bins: int = 50,
+                 num_amount_bins: int = 200,
                  cached: bool = False,
                  nrows: Optional[int] = None,
                  stride: int = 2,
@@ -64,7 +65,8 @@ class NuDataset(Dataset):
         self.tokenizer = NuTokenizer(model_name=model_name)
 
         self.ncols = None
-        self.num_bins = num_bins
+        self.num_amount_bins = num_amount_bins
+        self.num_timestamp_bins = num_timestamp_bins
         self.encode_data()
         if not use_pretrained_tokenizer:
             self.init_tokenizer()
@@ -103,7 +105,8 @@ class NuDataset(Dataset):
             "features": self.trans_table.columns,
             "num_transaction_sequences": self.num_transaction_sequences,
             "max_seq_len": self.max_seq_len,
-            "num_bins": self.num_bins,
+            "num_amount_bins": self.num_amount_bins,
+            "num_timestamp_bins": self.num_timestamp_bins,
         }
         if verbose:
             from nugpt.utils import print_dataset_summary
@@ -137,21 +140,36 @@ class NuDataset(Dataset):
     def amount_encoder(X: pd.Series) -> pd.DataFrame:
         amt = X.astype(float).apply(lambda amt: max(1, amt)).apply(math.log)
         return pd.DataFrame(amt)
-
-
-    def _quantization_binning(self, data: np.ndarray):
-        qtls = np.arange(0.0, 1.0 + 1 / self.num_bins, 1 / self.num_bins)
+    
+    def _time_binning(self, data: np.ndarray):
+        qtls = np.arange(0.0, 1.0 + 1 / self.num_timestamp_bins, 1 / self.num_timestamp_bins)
         bin_edges = np.quantile(data, qtls, axis=0)  # (num_bins + 1, num_features)
         bin_widths = np.diff(bin_edges, axis=0)
         bin_centers = bin_edges[:-1] + bin_widths / 2  # ()
         return bin_edges, bin_centers, bin_widths
 
-    def _quantize(self, inputs: np.ndarray, bin_edges: np.ndarray):
+    def _quantize_time(self, inputs: np.ndarray, bin_edges: np.ndarray):
         quant_inputs = np.zeros(inputs.shape[0])
         for i, x in enumerate(inputs):
             quant_inputs[i] = np.digitize(x, bin_edges)
-        quant_inputs = quant_inputs.clip(1, self.num_bins) - 1  # Clip edges
+        quant_inputs = quant_inputs.clip(1, self.num_timestamp_bins) - 1  # Clip edges
         return quant_inputs
+    
+    def _quantize(self, data: np.ndarray, num_bins: int, min_value: float = 0.01, max_value: float = 1e7):
+        log_min = math.log1p(min_value)
+        log_max = math.log1p(max_value)
+        bin_edges = np.logspace(log_min, log_max, num=num_bins+1, base=math.e) - 1
+        bin_edges = np.concatenate([[-np.inf], [0], bin_edges, [np.inf]])
+        
+        def quantize(x):
+            if x < 0:
+                return 0  # Bin for negative values (refunds)
+            elif x == 0:
+                return 1  # Bin for zero values
+            else:
+                return np.digitize(x, bin_edges) - 1
+        quant_inputs = np.array([quantize(x) for x in data])
+        return quant_inputs, bin_edges
 
     def format_trans(self, trans_lst: pd.Series, column_names: list[str]):
         trans_lst = list(divide_chunks(trans_lst, len(column_names)))
@@ -244,8 +262,11 @@ class NuDataset(Dataset):
         for column in ['Amount', 'Timestamp']:
             if column in data.columns:
                 coldata = np.array(data[column])
-                bin_edges, _, _ = self._quantization_binning(coldata)
-                data[column] = self._quantize(coldata, bin_edges)
+                if column == 'Timestamp':
+                    data[column], bin_edges = self._quantize(coldata, num_bins=self.num_amount_bins)
+                else:
+                    bin_edges, _, _ = self._time_binning(coldata)
+                    data[column] = self._quantize(coldata, num_bins=self.num_timestamp_bins)
                 self.encoder_fit[f"{column}_bins"] = bin_edges
 
         self.trans_table = data
