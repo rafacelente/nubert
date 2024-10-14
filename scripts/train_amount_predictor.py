@@ -62,6 +62,16 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
+    
+    args.dataset_path = "/notebooks/nubank"
+    args.model_name = "/notebooks/nuvank/output"
+    args.tokenizer_path = "/notebooks/nuvank/output"
+    args.per_device_train_batch_size = 16
+    args.per_device_eval_batch_size = 16
+    args.bf16 = True
+    args.num_train_epochs = 1
+    args.test_model = True
+    
 
     num_amount_bins = 100
     num_timestamp_bins = 100
@@ -73,7 +83,7 @@ def main():
 
     full_dataset = AmountDataset.from_raw_data(
         root=dataset_path,
-        fname="amount_dataset_raw",
+        fname="amount_dataset_raw_2",
         vocab_dir=f"{dataset_path}/data/vocab",
         num_amount_bins=num_amount_bins,
         num_timestamp_bins=num_timestamp_bins,
@@ -81,6 +91,7 @@ def main():
         num_transaction_sequences=args.num_transactions,
         max_seq_len=args.max_length
     )
+    print(f"max label found: {max(full_dataset.labels)}")
 
     summary = full_dataset.get_summary(verbose=True)
 

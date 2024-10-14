@@ -10,11 +10,11 @@ from nugpt.datasets import AmountDataset
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate Amount Prediction Model on Unseen Data")
-    parser.add_argument("--model_path", type=str, required=True, help="Path to the trained model")
-    parser.add_argument("--tokenizer_path", type=str, required=True, help="Path to the tokenizer")
-    parser.add_argument("--data_path", type=str, required=True, help="Path to the unseen data CSV file")
+    parser.add_argument("--model_path", type=str, required=False, help="Path to the trained model")
+    parser.add_argument("--tokenizer_path", type=str, required=False, help="Path to the tokenizer")
+    parser.add_argument("--data_path", type=str, required=False, help="Path to the unseen data CSV file")
     parser.add_argument("--output_dir", type=str, default="./evaluation_results", help="Directory to save evaluation results")
-    parser.add_argument("--agency_id", type=str, required=True, help="ID of the agency to plot time series for")
+    parser.add_argument("--agency_id", type=str, required=False, help="ID of the agency to plot time series for")
     return parser.parse_args()
 
 def load_model_and_tokenizer(model_path, tokenizer_path):
@@ -27,23 +27,29 @@ def prepare_data(data_path, tokenizer, max_length=512):
         root="./",
         fname=data_path,
         vocab_dir="./",
-        num_bins=100,
+        num_timestamp_bins=100,
+        num_amount_bins=100,
         model_name=tokenizer.name_or_path,
         num_transaction_sequences=5,
-        max_seq_len=max_length
+        max_seq_len=max_length,
+        nrows=2000,
     )
+    print(max(dataset.labels))
     return dataset
 
 def predict(model, dataset):
     model.eval()
+    model.to("cuda")
     predictions = []
     ground_truth = []
     
     with torch.no_grad():
         for item in tqdm(dataset, desc="Predicting"):
-            input_ids = item['text'].unsqueeze(0)  # Add batch dimension
+            input_ids = item['text'].unsqueeze(0).to("cuda")  # Add batch dimension
+            print(f"decoded: {dataset.tokenizer.decode(item['text'])}")
             outputs = model(input_ids)
-            predicted_class = outputs.logits.argmax(dim=-1).item()
+            predicted_class = outputs.logits.softmax(dim=-1).argmax(dim=-1).item()
+            print(f"predicted: {predicted_class} | ground truth: {item['label']}")
             predictions.append(predicted_class)
             ground_truth.append(item['label'])
     
@@ -89,6 +95,12 @@ def plot_time_series(dataset, predictions, agency_id, output_dir):
 
 def main():
     args = parse_args()
+    
+    args.model_path = "/notebooks/nuvank/nubert-predictor/"
+    args.tokenizer_path = "/notebooks/nuvank/output"
+    args.data_path = "/notebooks/nubank/evaluation_dataset_2"
+    args.output_dir = "/notebooks/nuvank/images/"
+    args.agency_id = "01000"
     
     model, tokenizer = load_model_and_tokenizer(args.model_path, args.tokenizer_path)
     dataset = prepare_data(args.data_path, tokenizer)
