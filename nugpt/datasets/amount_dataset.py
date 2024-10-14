@@ -23,7 +23,7 @@ class AmountDataset(NuDataset):
     def __getitem__(self, index):
             return {
                 "text": torch.tensor(self.data[index], dtype=torch.long),
-                "label": torch.nn.functional.one_hot(torch.tensor(self.labels[index], dtype=torch.long), num_classes=self.num_bins)
+                "label": torch.tensor(self.labels[index], dtype=torch.long)
             }
 
     def __len__(self):

@@ -82,7 +82,7 @@ def main():
 
     summary = full_dataset.get_summary(verbose=True)
 
-    train_data, val_data, test_data = split_dataset(full_dataset.data)
+    train_data, val_data, test_data = split_dataset(full_dataset)
 
     train_dataset = create_hf_dataset(train_data)
     val_dataset = create_hf_dataset(val_data)
