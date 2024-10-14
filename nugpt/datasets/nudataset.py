@@ -138,7 +138,7 @@ class NuDataset(Dataset):
 
     @staticmethod
     def amount_encoder(X: pd.Series) -> pd.DataFrame:
-        amt = X.astype(float).apply(lambda amt: max(1, amt)).apply(math.log)
+        amt = X.apply(lambda x: x.strip("$()").replace(",", "")).astype(float)
         return pd.DataFrame(amt)
     
     def _time_binning(self, data: np.ndarray):
@@ -262,11 +262,11 @@ class NuDataset(Dataset):
         for column in ['Amount', 'Timestamp']:
             if column in data.columns:
                 coldata = np.array(data[column])
-                if column == 'Timestamp':
+                if column == 'Amount':
                     data[column], bin_edges = self._quantize(coldata, num_bins=self.num_amount_bins)
                 else:
                     bin_edges, _, _ = self._time_binning(coldata)
-                    data[column] = self._quantize(coldata, num_bins=self.num_timestamp_bins)
+                    data[column] = self._quantize_time(coldata, bin_edges=bin_edges)
                 self.encoder_fit[f"{column}_bins"] = bin_edges
 
         self.trans_table = data

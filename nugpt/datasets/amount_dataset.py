@@ -31,7 +31,7 @@ class AmountDataset(NuDataset):
     
     @staticmethod
     def amount_encoder(X: pd.Series) -> pd.DataFrame:
-        amt = X.apply(lambda x: x.strip("$()").replace(",", "")).astype(float).apply(lambda amt: max(1, amt)).apply(math.log)
+        amt = X.apply(lambda x: x.strip("$()").replace(",", "")).astype(float)
         return pd.DataFrame(amt)
 
 
@@ -59,7 +59,7 @@ class AmountDataset(NuDataset):
         for user, user_transactions in tqdm.tqdm(user_groups):
             user_token_ids = []
             
-            for _, transaction in user_transactions.iterrows():
+            for i, transaction in user_transactions.iterrows():
                 token_ids = self.tokenizer.tokenize_transaction(transaction.to_dict(), column_names)
                 user_token_ids.append(token_ids)
             
@@ -68,7 +68,7 @@ class AmountDataset(NuDataset):
                 sequence = user_token_ids
                 flattened_sequence = [token for transaction in sequence for token in transaction]
                 self.data.append(flattened_sequence[:self.max_seq_len])
-                self.labels.append(transaction[self.prediction_column])
+                self.labels.append(user_transactions.iloc[i][self.prediction_column])
             else:
                 for i in range(0, len(user_token_ids) - self.num_transaction_sequences + 1, self.stride):
                     sequence = user_token_ids[i:i + self.num_transaction_sequences]
@@ -79,7 +79,7 @@ class AmountDataset(NuDataset):
                         flattened_sequence = flattened_sequence[:self.max_seq_len]
                     
                     self.data.append(flattened_sequence)
-                    self.labels.append(transaction[self.prediction_column])
+                    self.labels.append(user_transactions.iloc[i][self.prediction_column])
 
         log.info(f"number of samples: {len(self.data)}")
 
