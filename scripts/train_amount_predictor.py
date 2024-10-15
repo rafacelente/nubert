@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("--per_device_train_batch_size", type=int, default=1, help="Batch size per device during training")
     parser.add_argument("--per_device_eval_batch_size", type=int, default=1, help="Batch size per device during evaluation")
     parser.add_argument("--learning_rate", type=float, default=5e-5, help="Initial learning rate")
-    parser.add_argument("--num_train_epochs", type=float, default=1.5, help="Total number of training epochs")
+    parser.add_argument("--num_train_epochs", type=float, default=2.0, help="Total number of training epochs")
     parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass")
     parser.add_argument("--bf16", action="store_true", help="Whether to use 16-bit (mixed) precision instead of 32-bit")
@@ -42,7 +42,7 @@ def split_dataset(dataset, test_size=0.1, val_size=0.1, seed=42):
     return train, val, test
 
 def create_hf_dataset(data):
-    input_ids = [example["text"] for example in data]
+    input_ids = [example["input_ids"] for example in data]
     labels = [example["label"] for example in data]
     return Dataset.from_dict({"input_ids": input_ids, "labels": labels})
 
@@ -69,15 +69,15 @@ def main():
     args.per_device_train_batch_size = 16
     args.per_device_eval_batch_size = 16
     args.bf16 = True
-    args.num_train_epochs = 1
+    args.num_train_epochs = 2.0
     args.test_model = True
     
 
-    num_amount_bins = 100
-    num_timestamp_bins = 100
+    num_amount_bins = 20
+    num_timestamp_bins = 52
     model = AutoModelForSequenceClassification.from_pretrained(
         args.model_name,
-        num_labels=num_timestamp_bins,
+        num_labels=num_amount_bins,
     )
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
@@ -94,6 +94,8 @@ def main():
     print(f"max label found: {max(full_dataset.labels)}")
 
     summary = full_dataset.get_summary(verbose=True)
+    
+    print(f"dataset example: {full_dataset.tokenizer.decode(full_dataset[0]['input_ids'])} | label {full_dataset[0]['label']}")
 
     train_data, val_data, test_data = split_dataset(full_dataset)
 
@@ -133,9 +135,23 @@ def main():
     trainer.save_model()
 
     if args.test_model:
-        logger.info("Testing the model...")
-        test_results = trainer.evaluate(test_dataset)
-        logger.info(f"Test results: {test_results}")
+        model.eval()
+        model.to("cuda")
+        predictions = []
+        ground_truth = []
+
+        import torch
+        from tqdm import tqdm
+        with torch.no_grad():
+            for batch in tqdm(test_dataset, desc="Predicting"):
+                input_ids = torch.Tensor(batch['input_ids']).to(torch.int64).unsqueeze(0).to("cuda")  # Add batch dimension
+                #print(f"decoded: {full_dataset.tokenizer.decode(batch['input_ids'])}")
+                outputs = model(input_ids, attention_mask=torch.ones(input_ids.shape).to(torch.int64).to("cuda"))
+                print(outputs.logits.softmax(dim=-1))
+                predicted_class = outputs.logits.softmax(dim=-1).argmax(dim=-1).item()
+                print(f"predicted: {predicted_class} | ground truth: {batch['labels']}")
+                predictions.append(predicted_class)
+                ground_truth.append(batch['labels'])
 
     logger.info("Training completed. Model saved.")
 

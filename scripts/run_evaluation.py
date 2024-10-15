@@ -27,12 +27,11 @@ def prepare_data(data_path, tokenizer, max_length=512):
         root="./",
         fname=data_path,
         vocab_dir="./",
-        num_timestamp_bins=100,
-        num_amount_bins=100,
+        num_timestamp_bins=52,
+        num_amount_bins=20,
         model_name=tokenizer.name_or_path,
         num_transaction_sequences=5,
         max_seq_len=max_length,
-        nrows=2000,
     )
     print(max(dataset.labels))
     return dataset

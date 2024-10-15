@@ -21,9 +21,12 @@ class AmountDataset(NuDataset):
         super().__init__(use_pretrained_tokenizer=True, *args, **kwargs)
 
     def __getitem__(self, index):
+            input_ids = self.data[index]
+            attention_mask = [1] * len(input_ids)
             return {
-                "text": torch.tensor(self.data[index], dtype=torch.long),
-                "label": torch.tensor(self.labels[index], dtype=torch.long)
+                "input_ids": torch.tensor(input_ids, dtype=torch.long),
+                "label": torch.tensor(self.labels[index], dtype=torch.long),
+                "attention_mask": torch.tensor(attention_mask, dtype=torch.long),
             }
 
     def __len__(self):
@@ -64,13 +67,13 @@ class AmountDataset(NuDataset):
                     if sequence_i == self.num_transaction_sequences - 1:
                         self.labels.append(transaction['Amount'])
                         flattened_sequence.extend(self.tokenizer.tokenize_transaction_with_mask_amount(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
+                        # Truncate when > max_seq_len
+                        if len(flattened_sequence) > self.max_seq_len:
+                            flattened_sequence = flattened_sequence[:self.max_seq_len]
+                        self.data.append(flattened_sequence)
                     else:
                         flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
 
-                # Truncate when > max_seq_len
-                if len(flattened_sequence) > self.max_seq_len:
-                    flattened_sequence = flattened_sequence[:self.max_seq_len]
-
-                self.data.append(flattened_sequence)
+                assert len(self.data) == len(self.labels)
 
         log.info(f"number of samples: {len(self.data)}")
