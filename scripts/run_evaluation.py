@@ -55,20 +55,33 @@ def create_hf_dataset(data: pd.DataFrame) -> Dataset:
     labels = [example["label"] for example in data]
     return Dataset.from_dict({"input_ids": input_ids, "labels": labels})
 
-def predict(model: AutoModelForSequenceClassification, dataset: Dataset) -> Tuple[list, list]:
+def predict(
+        model: AutoModelForSequenceClassification,
+        dataset: Dataset,
+        stride: int = 1,
+    ) -> Tuple[list, list]:
     model.eval()
     model.to("cuda")
-    predictions = []
-    ground_truth = []
+    len_dataset = len(dataset)
+    predictions = [0] * len_dataset
+    ground_truth = [0] * len_dataset
+
+    predictions[:4] = None
+    ground_truth[:4] = None
+    if stride == 2:
+        predictions[4] = None
+        ground_truth[4] = None
+        predictions[6] = None
+        ground_truth[6] = None
     
     with torch.no_grad():
-        for batch in tqdm(dataset, desc="Predicting"):
+        for i, batch in tqdm(enumerate(dataset), desc="Predicting"):
             input_ids = torch.Tensor(batch['input_ids']).to(torch.int64).unsqueeze(0).to("cuda")  # Add batch dimension
             outputs = model(input_ids, attention_mask=torch.ones(input_ids.shape).to(torch.int64).to("cuda"))
             predicted_class = outputs.logits.softmax(dim=-1).argmax(dim=-1).item()
             print(f"predicted: {predicted_class} | ground truth: {batch['labels']}")
-            predictions.append(predicted_class)
-            ground_truth.append(batch['labels'])
+            predictions[i] = predicted_class
+            ground_truth[i] = batch['labels']
     
     return predictions, ground_truth
 
