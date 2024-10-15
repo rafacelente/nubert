@@ -78,10 +78,13 @@ class NuDataset(Dataset):
         cls,
         fname: str,
         root: str = "./data/",
+        filter_list: Optional[list[str]] = None,
         **kwargs
     ):
         df = pd.read_csv(path.join(root, f"{fname}.csv"))
         df = NuTable.clean_all_and_rename(df=df)
+        if filter_list is not None and len(filter_list) > 0:
+            df = NuTable.filter_to_list_of_agency_names(df, filter_list)
         df.to_csv(path.join(root, f"{fname}.cleaned.csv"), index=False)
         return cls(fname=f"{fname}.cleaned", root=root, **kwargs)
 

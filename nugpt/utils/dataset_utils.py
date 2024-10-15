@@ -46,6 +46,14 @@ class NuTable:
         log.info(f"Removed {before_len - after_len} rows with unnamed columns")
         df.drop(columns=unnamed_cols, inplace=True)
         return df
+    
+    @staticmethod
+    def filter_to_list_of_agency_names(
+            df: pd.DataFrame,
+            agency_list: List[str],
+        ):
+        column_name = 'Agency Name' if 'Agency Name' in df.columns else 'AgencyName'
+        return df[df[column_name].isin(agency_list)]
 
     @staticmethod    
     def clean_discrepant_names(
