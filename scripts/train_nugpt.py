@@ -20,11 +20,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a language model on NuDataset")
     parser.add_argument("--model_name", type=str, default="distilbert/distilbert-base-uncased", help="Model identifier from huggingface.co/models")
     parser.add_argument("--dataset_path", type=str, required=False, help="Path to the dataset")
-    parser.add_argument("--output_dir", type=str, default="/notebooks/nuvank/output", help="Where to store the final model")
+    parser.add_argument("--output_dir", type=str, default="/notebooks/nuvank/nubert", help="Where to store the final model")
     parser.add_argument("--max_length", type=int, default=512, help="Max sequence length")
     parser.add_argument("--num_transactions", type=int, default=5, help="Number of transactions per sequence")
-    parser.add_argument("--per_device_train_batch_size", type=int, default=16, help="Batch size per device during training")
-    parser.add_argument("--per_device_eval_batch_size", type=int, default=16, help="Batch size per device during evaluation")
+    parser.add_argument("--per_device_train_batch_size", type=int, default=128, help="Batch size per device during training")
+    parser.add_argument("--per_device_eval_batch_size", type=int, default=128, help="Batch size per device during evaluation")
     parser.add_argument("--learning_rate", type=float, default=5e-5, help="Initial learning rate")
     parser.add_argument("--num_train_epochs", type=float, default=2.0, help="Total number of training epochs")
     parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training")
@@ -75,6 +75,7 @@ def main():
         model_name=args.model_name,
         num_transaction_sequences=args.num_transactions,
         max_seq_len=args.max_length,
+        stride=1,
     )
 
     summary = full_dataset.get_summary(verbose=True)

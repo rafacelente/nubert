@@ -64,10 +64,10 @@ def main():
     )
     
     args.dataset_path = "/notebooks/nubank"
-    args.model_name = "/notebooks/nuvank/output"
+    args.model_name = "/notebooks/nuvank/nubert/"
     args.tokenizer_path = "/notebooks/nuvank/output"
-    args.per_device_train_batch_size = 16
-    args.per_device_eval_batch_size = 16
+    args.per_device_train_batch_size = 32
+    args.per_device_eval_batch_size = 32
     args.bf16 = True
     args.num_train_epochs = 2.0
     args.test_model = True
