@@ -23,7 +23,14 @@ DEFAULT_RENAME_MAPPING = {
 
 INVERSE_RENAME_MAPPING = {v: k for k, v in DEFAULT_RENAME_MAPPING.items()}
 
-DEFAULT_COLUMN_ORDER = ['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']
+DEFAULT_COLUMN_ORDER = [
+    'AgencyName',
+    'Vendor',
+    'MCC',
+    'Timestamp',
+    'Original Transaction Date',
+    'Amount'
+]
 
 
 def print_dataset_summary(info_dict: Dict[str, int]):
@@ -84,12 +91,15 @@ class NuTable:
     def rename_columns(
             df: pd.DataFrame,
             column_map: Optional[Dict[str, str]] = None,
+            keep_original_timestamp: bool = True,
         ):
         if column_map is None:
             column_map = DEFAULT_RENAME_MAPPING
+        if keep_original_timestamp:
+            df['Original Transaction Date'] = pd.to_datetime(df['Transaction Date'])
         df.rename(columns=column_map, inplace=True)
         return df
-    
+
     @staticmethod
     def reorder_columns(
             df: pd.DataFrame,

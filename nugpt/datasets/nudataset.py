@@ -38,7 +38,6 @@ class NuDataset(Dataset):
                  nrows: Optional[int] = None,
                  stride: int = 2,
                  return_labels: bool = False,
-                 skip_agency_number: bool = False,
                  use_pretrained_tokenizer: bool = False,
     ):
         self.root = root
@@ -48,7 +47,6 @@ class NuDataset(Dataset):
         self.cached = cached
         self.user_ids = user_ids
         self.return_labels = return_labels
-        self.skip_agency_number = skip_agency_number
 
         self.trans_stride = stride
 
@@ -191,7 +189,7 @@ class NuDataset(Dataset):
         user_column = DATA_TYPE_MAPPING["index"]
         # Group transactions by user and filter < self.num_transactions
         self.trans_table = self.trans_table.groupby(user_column).filter(lambda x: len(x) >= self.num_transaction_sequences)
-        self.trans_table = self.trans_table.sort_values(by=["AgencyName", "Timestamp"]).reset_index(drop=True)
+        self.trans_table = self.trans_table.sort_values(by=["AgencyName", "Original Transaction Date"]).reset_index(drop=True)
         user_groups = self.trans_table.groupby(user_column)
 
         for user, user_transactions in tqdm.tqdm(user_groups):
