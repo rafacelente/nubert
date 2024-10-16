@@ -57,7 +57,7 @@ class NuTokenizer:
                 bins = list(self.numerical_encoders[f"{column}"].keys())
                 token = self.encode_numerical(column, value, bins)
             elif column == "Amount":
-                tokens.append(" ") # self.base_tokenizer.mask_token)
+                tokens.append(self.base_tokenizer.mask_token)
                 tokens.append(self.special_tokens["sep_token"])
                 continue
             else:
