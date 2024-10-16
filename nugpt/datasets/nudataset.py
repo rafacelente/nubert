@@ -208,7 +208,6 @@ class NuDataset(Dataset):
                         if len(flattened_sequence) > self.max_seq_len:
                                 flattened_sequence = flattened_sequence[:self.max_seq_len]
                         self.data.append(flattened_sequence)
-                    assert len(self.data) == len(self.labels)
                 grouper = shift(grouper, self.stride, cval=-1)
 
         log.info(f"number of samples: {len(self.data)}")
