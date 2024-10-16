@@ -10,6 +10,7 @@ import logging
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import MinMaxScaler
+from scipy.ndimage import shift
 
 import torch
 from torch.utils.data.dataset import Dataset
@@ -187,35 +188,28 @@ class NuDataset(Dataset):
 
     def prepare_samples(self):
         log.info("preparing user-level transaction sequences...")
-        column_names = list(self.trans_table.columns)
         user_column = DATA_TYPE_MAPPING["index"]
-
-        # Group transactions by user
+        # Group transactions by user and filter < self.num_transactions
+        self.trans_table = self.trans_table.groupby(user_column).filter(lambda x: len(x) >= self.num_transaction_sequences)
+        self.trans_table = self.trans_table.sort_values(by=["AgencyName", "Timestamp"]).reset_index(drop=True)
         user_groups = self.trans_table.groupby(user_column)
 
         for user, user_transactions in tqdm.tqdm(user_groups):
-            user_token_ids = []
-            user_transactions.sort_values(by='Timestamp', inplace=True)
-            
-            for _, transaction in user_transactions.iterrows():
-                token_ids = self.tokenizer.tokenize_transaction(transaction.to_dict(), column_names)
-                user_token_ids.append(token_ids)
-            
-            if len(user_token_ids) < self.num_transaction_sequences:
-                log.info(f"User {user} has less than {self.num_transaction_sequences} transactions.")
-                sequence = user_token_ids
-                flattened_sequence = [token for transaction in sequence for token in transaction]
-                self.data.append(flattened_sequence[:self.max_seq_len])
-            else:
-                for i in range(0, len(user_token_ids) - self.num_transaction_sequences + 1, self.stride):
-                    sequence = user_token_ids[i:i + self.num_transaction_sequences]
-                    flattened_sequence = [token for transaction in sequence for token in transaction]
-
-                    # truncate when > max_seq_len
-                    if len(flattened_sequence) > self.max_seq_len:
-                        flattened_sequence = flattened_sequence[:self.max_seq_len]
-                    
-                    self.data.append(flattened_sequence)
+            grouper = np.arange(user_transactions.shape[0]) // self.num_transaction_sequences
+            for _ in range(self.num_transaction_sequences):
+                # we could probably cache the previous sequences to do
+                # the shifting but j'ai la flemme
+                for group_id, group in user_transactions.groupby(grouper):
+                    if group_id == -1:
+                        continue
+                    flattened_sequence = []
+                    for _, (_, transaction) in enumerate(group.iterrows()):
+                        flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
+                        if len(flattened_sequence) > self.max_seq_len:
+                                flattened_sequence = flattened_sequence[:self.max_seq_len]
+                        self.data.append(flattened_sequence)
+                    assert len(self.data) == len(self.labels)
+                grouper = shift(grouper, self.stride, cval=-1)
 
         log.info(f"number of samples: {len(self.data)}")
 

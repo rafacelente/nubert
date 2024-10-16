@@ -44,6 +44,7 @@ def prepare_data(
         model_name=tokenizer.name_or_path,
         num_transaction_sequences=5,
         max_seq_len=max_length,
+        stride=1,
     )
     table = dataset.trans_table
     dataset = create_hf_dataset(dataset)
@@ -58,16 +59,17 @@ def create_hf_dataset(data: pd.DataFrame) -> Dataset:
 def predict(
         model: AutoModelForSequenceClassification,
         dataset: Dataset,
+        table_size: int,
         stride: int = 1,
     ) -> Tuple[list, list]:
     model.eval()
     model.to("cuda")
-    len_dataset = len(dataset)
-    predictions = [0] * len_dataset
-    ground_truth = [0] * len_dataset
+    predictions = [0] * table_size
+    ground_truth = [0] * table_size
 
-    predictions[:4] = None
-    ground_truth[:4] = None
+    for i in range(4):
+        predictions[i] = None
+        ground_truth[i] = None
     if stride == 2:
         predictions[4] = None
         ground_truth[4] = None
@@ -79,7 +81,6 @@ def predict(
             input_ids = torch.Tensor(batch['input_ids']).to(torch.int64).unsqueeze(0).to("cuda")  # Add batch dimension
             outputs = model(input_ids, attention_mask=torch.ones(input_ids.shape).to(torch.int64).to("cuda"))
             predicted_class = outputs.logits.softmax(dim=-1).argmax(dim=-1).item()
-            print(f"predicted: {predicted_class} | ground truth: {batch['labels']}")
             predictions[i] = predicted_class
             ground_truth[i] = batch['labels']
     
@@ -125,7 +126,7 @@ def plot_time_series(
 def main():
     args = parse_args()
     
-    args.model_path = "/notebooks/nuvank/nubert-predictor/"
+    args.model_path = "/notebooks/nubank/nugpt/scripts/output/"
     args.tokenizer_path = "/notebooks/nuvank/output"
     args.data_path = "/notebooks/nubank/evaluation_dataset_2"
     args.output_dir = "/notebooks/nuvank/images/"
@@ -138,7 +139,7 @@ def main():
         agency_name=args.agency_name,
     )
     
-    predictions, ground_truth = predict(model, dataset)
+    predictions, ground_truth = predict(model, dataset, table_size=len(table))
     
     table['predictions'] = predictions
     table['ground_truth'] = ground_truth
@@ -151,9 +152,8 @@ def main():
     print(f"F1 Score: {f1:.4f}")
     
     plot_confusion_matrix(conf_matrix, args.output_dir)
-    plot_time_series(dataset, predictions, args.agency_id, args.output_dir)
+    plot_time_series(table, args.output_dir)
     
-    # Save metrics to a file
     with open(f"{args.output_dir}/metrics.txt", "w") as f:
         f.write(f"Accuracy: {accuracy:.4f}\n")
         f.write(f"F1 Score: {f1:.4f}\n")
