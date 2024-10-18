@@ -140,7 +140,7 @@ class NuDataset(Dataset):
                         flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
                         if len(flattened_sequence) > self.max_seq_len:
                                 flattened_sequence = flattened_sequence[:self.max_seq_len]
-                        self.data.append(flattened_sequence)
+                    self.data.append(flattened_sequence)
                 grouper = shift(grouper, self.stride, cval=-1)
 
         log.info(f"number of samples: {len(self.data)}")
