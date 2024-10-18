@@ -18,3 +18,4 @@ checkpoints/
 examples/
 test_*.ipynb
 preprocessed
+*.csv
