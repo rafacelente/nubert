@@ -6,7 +6,7 @@ from nugpt.utils import INVERSE_RENAME_MAPPING
 class NuTokenizer:
     def __init__(
             self,
-            model_name: str = "TinyLlama/TinyLlama_v1.1"
+            model_name: str = "distilbert/distilbert-base-uncased"
         ):
         self.base_tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.special_tokens = {
@@ -42,13 +42,14 @@ class NuTokenizer:
     def tokenize_transaction_with_mask_amount(
             self,
             transaction: Dict[str, Any],
-            column_order: List[str]
+            column_order: List[str],
+            name_mapping: Dict[str, str] = INVERSE_RENAME_MAPPING
         ) -> List[int]:
         # [CLS] field1: value1 [SEP] field2: value2 [SEP] ... fieldN: valueN [SEP] [SEP]
         tokens = [self.special_tokens["cls_token"]]
         
         for column in column_order:
-            index_tokens = self.base_tokenizer.tokenize(f"{INVERSE_RENAME_MAPPING[column]}:")
+            index_tokens = self.base_tokenizer.tokenize(f"{name_mapping[column]}:")
             tokens.extend(index_tokens)
             value = transaction[column]
             if column in self.categorical_encoders:
@@ -73,12 +74,17 @@ class NuTokenizer:
         tokens.append(self.special_tokens["sep_token"]) 
         return self.base_tokenizer.convert_tokens_to_ids(tokens)
     
-    def tokenize_transaction(self, transaction: Dict[str, Any], column_order: List[str]) -> List[int]:
+    def tokenize_transaction(
+            self,
+            transaction: Dict[str, Any],
+            column_order: List[str],
+            name_mapping: Dict[str, str] = INVERSE_RENAME_MAPPING    
+        ) -> List[int]:
         # [CLS] field1: value1 [SEP] field2: value2 [SEP] ... fieldN: valueN [SEP] [SEP]
         tokens = [self.special_tokens["cls_token"]]
         
         for column in column_order:
-            index_tokens = self.base_tokenizer.tokenize(f"{INVERSE_RENAME_MAPPING[column]}:")
+            index_tokens = self.base_tokenizer.tokenize(f"{name_mapping[column]}:")
             tokens.extend(index_tokens)
             value = transaction[column]
             if column in self.categorical_encoders:
