@@ -8,28 +8,16 @@ logger = getLogger(__name__)
 log = logger
 
 DATA_TYPE_MAPPING = {
-    "text": ["MCC", "Vendor", "AgencyName", "Amount"],
-    "categorical": ["AgencyNumber"],
+    "text": ["Merchant Category Code (MCC)", "Vendor", "Agency Name", "Amount"],
+    "categorical": ["Agency Number"],
     "numerical": ["Timestamp"],
-    "index": "AgencyName",
+    "index": "Agency Name",
 }
-
-DEFAULT_RENAME_MAPPING = {
-    'Agency Number': 'AgencyNumber',
-    'Transaction Date': 'Transaction Date',
-    'Merchant Category Code (MCC)': 'MCC',
-    'Vendor': 'Vendor',
-    'Amount': 'Amount',
-    'Agency Name': 'AgencyName',
-    'Timestamp': 'Timestamp',
-}
-
-INVERSE_RENAME_MAPPING = {v: k for k, v in DEFAULT_RENAME_MAPPING.items()}
 
 DEFAULT_COLUMN_ORDER = [
-    'AgencyName',
+    'Agency Name',
     'Vendor',
-    'MCC',
+    'Merchant Category Code (MCC)',
     'Timestamp',
     'Amount',
     'Transaction Date',
@@ -97,12 +85,9 @@ class NuTable:
     def rename_columns(
             df: pd.DataFrame,
             column_map: Optional[Dict[str, str]] = None,
-            keep_original_timestamp: bool = True,
         ):
         if column_map is None:
             column_map = DEFAULT_RENAME_MAPPING
-        if keep_original_timestamp:
-            df['Original Transaction Date'] = pd.to_datetime(df['Transaction Date'])
         df.rename(columns=column_map, inplace=True)
         return df
 
@@ -225,7 +210,7 @@ class NuTable:
         df_copy = NuTable.fill_na(df_copy)
         df_copy = NuTable.encode_amount(df_copy, num_bins)
         df_copy = NuTable.encode_timestamp(df_copy)
-        df_copy = NuTable.rename_columns(df_copy, column_map)
+        # df_copy = NuTable.rename_columns(df_copy, column_map)
         df_copy = NuTable.reorder_columns(df_copy, column_order)
         print(df_copy.columns)
         return df_copy

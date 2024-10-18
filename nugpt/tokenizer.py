@@ -1,7 +1,6 @@
+from typing import List, Dict, Any, Union, Optional
 from transformers import AutoTokenizer
-from typing import List, Dict, Any, Union
 import numpy as np
-from nugpt.utils import INVERSE_RENAME_MAPPING
 
 class NuTokenizer:
     def __init__(
@@ -43,13 +42,16 @@ class NuTokenizer:
             self,
             transaction: Dict[str, Any],
             column_order: List[str],
-            name_mapping: Dict[str, str] = INVERSE_RENAME_MAPPING
+            name_mapping: Optional[Dict[str, str]] = None
         ) -> List[int]:
         # [CLS] field1: value1 [SEP] field2: value2 [SEP] ... fieldN: valueN [SEP] [SEP]
         tokens = [self.special_tokens["cls_token"]]
         
         for column in column_order:
-            index_tokens = self.base_tokenizer.tokenize(f"{name_mapping[column]}:")
+            column_name = column
+            if name_mapping is not None:
+                column_name = name_mapping[column]
+            index_tokens = self.base_tokenizer.tokenize(f"{column_name}:")
             tokens.extend(index_tokens)
             value = transaction[column]
             if column in self.categorical_encoders:
@@ -78,13 +80,16 @@ class NuTokenizer:
             self,
             transaction: Dict[str, Any],
             column_order: List[str],
-            name_mapping: Dict[str, str] = INVERSE_RENAME_MAPPING    
+            name_mapping: Optional[Dict[str, str]] = None    
         ) -> List[int]:
         # [CLS] field1: value1 [SEP] field2: value2 [SEP] ... fieldN: valueN [SEP] [SEP]
         tokens = [self.special_tokens["cls_token"]]
-        
+
         for column in column_order:
-            index_tokens = self.base_tokenizer.tokenize(f"{name_mapping[column]}:")
+            column_name = column
+            if name_mapping is not None:
+                column_name = name_mapping[column]
+            index_tokens = self.base_tokenizer.tokenize(f"{column_name}:")
             tokens.extend(index_tokens)
             value = transaction[column]
             if column in self.categorical_encoders:

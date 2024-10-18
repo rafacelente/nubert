@@ -9,10 +9,10 @@ import torch
 @pytest.fixture
 def sample_data():
     return pd.DataFrame({
-        'AgencyNumber': ['A001', 'A001', 'A002', 'A002'],
+        'Agency Name': ['A001', 'A001', 'A002', 'A002'],
         'Timestamp': ['2023-01-01', '2023-01-02', '2023-01-01', '2023-01-02'],
         'Amount': [100.0, 200.0, 150.0, 250.0],
-        'MCC': ['TEST1', 'TEST2', 'TEST3', 'TEST4']
+        'Merchant Category Code (MCC)': ['TEST1', 'TEST2', 'TEST3', 'TEST4']
     })
 
 

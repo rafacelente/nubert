@@ -105,7 +105,7 @@ def plot_time_series(
         df: pd.DataFrame,
         output_dir: str,
     ):
-    agency_name = df['AgencyName'].iloc[0]
+    agency_name = df['Agency Name'].iloc[0]
     agency_data = [(row['Timestamp'], row['ground_truth'], row['predictions']) 
                    for i, row in df.iterrows()]
     
