@@ -31,12 +31,6 @@ class AmountDataset(NuDataset):
 
     def __len__(self):
         return len(self.data)
-    
-    @staticmethod
-    def amount_encoder(X: pd.Series) -> pd.DataFrame:
-        amt = X.apply(lambda x: x.strip("$()").replace(",", "")).astype(float)
-        return pd.DataFrame(amt)
-
 
     def format_trans(self, trans_lst: pd.Series, column_names: list[str]):
         trans_lst = list(divide_chunks(trans_lst, len(column_names)))
@@ -55,7 +49,7 @@ class AmountDataset(NuDataset):
 
         # Group transactions by user and filter < self.num_transactions
         self.trans_table = self.trans_table.groupby(user_column).filter(lambda x: len(x) >= self.num_transaction_sequences)
-        self.trans_table = self.trans_table.sort_values(by=["AgencyName", "Timestamp"]).reset_index(drop=True)
+        self.trans_table = self.trans_table.sort_values(by=["AgencyName", "Transaction Date"]).reset_index(drop=True)
         user_groups = self.trans_table.groupby(user_column)
 
         for user, user_transactions in tqdm.tqdm(user_groups):
