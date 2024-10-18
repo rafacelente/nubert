@@ -210,7 +210,6 @@ class NuTable:
         df_copy = NuTable.encode_timestamp(df_copy)
         # df_copy = NuTable.rename_columns(df_copy, column_map)
         df_copy = NuTable.reorder_columns(df_copy, column_order)
-        print(df_copy.columns)
         return df_copy
     
     @staticmethod
