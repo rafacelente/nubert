@@ -21,37 +21,23 @@ class NuDataset(Dataset):
                  model_name: str = "distilbert/distilbert-base-uncased",
                  root: str = "./data/",
                  fname: str = "nudataset",
-                 vocab_dir: str = "./data/vocab",
                  fextension: str = "",
-                 user_ids: Optional[list[int]] = None,
                  num_transaction_sequences: int = 5,
                  max_seq_len: int = 2048,
-                 cached: bool = False,
                  nrows: Optional[int] = None,
                  stride: int = 2,
-                 return_labels: bool = False,
                  use_pretrained_tokenizer: bool = False,
     ):
         self.root = root
         self.fname = fname
         self.fextension = f'_{fextension}' if fextension else ''
         self.nrows = nrows
-        self.cached = cached
-        self.user_ids = user_ids
-        self.return_labels = return_labels
-
-        self.trans_stride = stride
-
         self.stride = stride
         self.num_transaction_sequences = num_transaction_sequences
-
         self.max_seq_len = max_seq_len
         self.encoder_fit = {}
-
-        self.trans_table = None
+        self.trans_table : pd.DataFrame = None
         self.data = []
-        self.labels = []
-        self.window_label = []
 
         self.tokenizer = NuTokenizer(model_name=model_name)
 
@@ -101,8 +87,6 @@ class NuDataset(Dataset):
 
     def __getitem__(self, index):
             return_data = torch.tensor(self.data[index], dtype=torch.long)
-            if self.return_labels:
-                return_data = (return_data, torch.tensor(self.labels[index], dtype=torch.long))
             return return_data
 
     def __len__(self):
@@ -115,7 +99,7 @@ class NuDataset(Dataset):
         info_dict = {
             "num_samples": len(self.data),
             "num_tokens": self.token_count(),
-            "num_features": self.ncols,
+            "num_features": self.trans_table.shape[1],
             "features": self.trans_table.columns,
             "num_transaction_sequences": self.num_transaction_sequences,
             "max_seq_len": self.max_seq_len,
