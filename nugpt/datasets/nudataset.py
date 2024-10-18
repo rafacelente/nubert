@@ -36,7 +36,7 @@ class NuDataset(Dataset):
         self.num_transaction_sequences = num_transaction_sequences
         self.max_seq_len = max_seq_len
         self.encoder_fit = {}
-        self.trans_table : pd.DataFrame = None
+        self.trans_table : pd.DataFrame | None = None
         self.data = []
 
         self.tokenizer = NuTokenizer(model_name=model_name)
@@ -124,7 +124,7 @@ class NuDataset(Dataset):
         user_column = DATA_TYPE_MAPPING["index"]
         # Group transactions by user and filter < self.num_transactions
         self.trans_table = self.trans_table.groupby(user_column).filter(lambda x: len(x) >= self.num_transaction_sequences)
-        self.trans_table = self.trans_table.sort_values(by=["AgencyName", "Transaction Date"]).reset_index(drop=True)
+        self.trans_table = self.trans_table.sort_values(by=["Agency Name", "Transaction Date"]).reset_index(drop=True)
         user_groups = self.trans_table.groupby(user_column)
 
         for user, user_transactions in tqdm.tqdm(user_groups):
@@ -137,7 +137,7 @@ class NuDataset(Dataset):
                         continue
                     flattened_sequence = []
                     for _, (_, transaction) in enumerate(group.iterrows()):
-                        flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
+                        flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['Agency Name', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
                         if len(flattened_sequence) > self.max_seq_len:
                                 flattened_sequence = flattened_sequence[:self.max_seq_len]
                     self.data.append(flattened_sequence)
