@@ -137,7 +137,7 @@ class NuDataset(Dataset):
                         continue
                     flattened_sequence = []
                     for _, (_, transaction) in enumerate(group.iterrows()):
-                        flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['Agency Name', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
+                        flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['Agency Name', 'Vendor', '"Merchant Category Code (MCC)"', 'Timestamp', 'Amount']))
                         if len(flattened_sequence) > self.max_seq_len:
                                 flattened_sequence = flattened_sequence[:self.max_seq_len]
                     self.data.append(flattened_sequence)

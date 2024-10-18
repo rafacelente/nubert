@@ -69,9 +69,7 @@ def main():
     full_dataset = NuDataset.from_raw_data(
         root=dataset_path,
         fname="raw_dataset",
-        vocab_dir=f"{dataset_path}/data/vocab",
-        num_amount_bins=20,
-        num_timestamp_bins=52,
+        num_bins=20,
         model_name=args.model_name,
         num_transaction_sequences=args.num_transactions,
         max_seq_len=args.max_length,
