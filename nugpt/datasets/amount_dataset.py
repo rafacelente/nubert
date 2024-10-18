@@ -49,7 +49,7 @@ class AmountDataset(NuDataset):
 
         # Group transactions by user and filter < self.num_transactions
         self.trans_table = self.trans_table.groupby(user_column).filter(lambda x: len(x) >= self.num_transaction_sequences)
-        self.trans_table = self.trans_table.sort_values(by=["AgencyName", "Transaction Date"]).reset_index(drop=True)
+        self.trans_table = self.trans_table.sort_values(by=["Agency Name", "Transaction Date"]).reset_index(drop=True)
         user_groups = self.trans_table.groupby(user_column)
 
         for user, user_transactions in tqdm.tqdm(user_groups):
@@ -66,13 +66,13 @@ class AmountDataset(NuDataset):
                         if sequence_i == self.num_transaction_sequences - 1:
                             self.trans_table.loc[table_i, 'Prediction'] = transaction[self.prediction_column]
                             self.labels.append(transaction[self.prediction_column])
-                            flattened_sequence.extend(self.tokenizer.tokenize_transaction_with_mask_amount(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
+                            flattened_sequence.extend(self.tokenizer.tokenize_transaction_with_mask_amount(transaction.to_dict(), column_order=['Agency Name', 'Vendor', 'Merchant Category Code (MCC)', 'Timestamp', 'Amount']))
                             # truncate when > max_seq_len
                             if len(flattened_sequence) > self.max_seq_len:
                                 flattened_sequence = flattened_sequence[:self.max_seq_len]
                             self.data.append(flattened_sequence)
                         else:
-                            flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['AgencyName', 'Vendor', 'MCC', 'Timestamp', 'Amount']))
+                            flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['Agency Name', 'Vendor', 'Merchant Category Code (MCC)', 'Timestamp', 'Amount']))
 
                     assert len(self.data) == len(self.labels)
                 grouper = shift(grouper, self.stride, cval=-1)
