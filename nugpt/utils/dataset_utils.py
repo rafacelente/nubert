@@ -84,10 +84,8 @@ class NuTable:
     @staticmethod
     def rename_columns(
             df: pd.DataFrame,
-            column_map: Optional[Dict[str, str]] = None,
+            column_map: Dict[str, str],
         ):
-        if column_map is None:
-            column_map = DEFAULT_RENAME_MAPPING
         df.rename(columns=column_map, inplace=True)
         return df
 
