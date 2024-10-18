@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "nugpt"
+name = "nubert"
 version = "0.1.0"
 description = ""
 authors = ["Rafael Celente <rafaelmcelente@gmail.com>"]
