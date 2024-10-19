@@ -51,15 +51,7 @@ class NuDataset(Dataset):
         self.prepare_samples()
 
     @classmethod
-    def from_default_config(cls):
-        return cls.from_config_file(NUBERT_DEFAULT_CONFIG_FILE)
-
-    @classmethod
-    def from_config_file(
-        cls,
-        config_path: str
-    ):
-        config = NubertPreTrainConfig.from_yaml(config_path)
+    def from_confg(cls, config: NubertPreTrainConfig):
         if not config.from_cleaned_data:
             return cls.from_raw_data(
                 fname=config.file_name,
@@ -84,6 +76,18 @@ class NuDataset(Dataset):
             randomize_column_order=config.randomize_column_order,
             nrows=config.nrows
         )
+
+    @classmethod
+    def from_config_file(
+        cls,
+        config_path: str
+    ):
+        config = NubertPreTrainConfig.from_yaml(config_path)
+        return cls.from_confg(config)
+
+    @classmethod
+    def from_default_config(cls):
+        return cls.from_config_file(NUBERT_DEFAULT_CONFIG_FILE)
 
     @classmethod
     def from_raw_data(
