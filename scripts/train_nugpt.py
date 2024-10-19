@@ -12,7 +12,7 @@ from transformers import (
 from datasets import Dataset
 from sklearn.model_selection import train_test_split
 
-from nugpt import NuDataset
+from nubert import NuDataset
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from transformers import (
 from datasets import Dataset
 from sklearn.model_selection import train_test_split
 
-from nugpt.datasets import AmountDataset
+from nubert.datasets import AmountDataset
 
 logger = logging.getLogger(__name__)
 

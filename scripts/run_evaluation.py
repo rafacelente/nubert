@@ -9,7 +9,7 @@ import seaborn as sns
 from tqdm import tqdm
 import pandas as pd
 
-from nugpt.datasets import AmountDataset
+from nubert.datasets import AmountDataset
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate Amount Prediction Model on Unseen Data")
