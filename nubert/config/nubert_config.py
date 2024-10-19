@@ -15,8 +15,7 @@ class TrainerConfig(BaseModel):
     output_dir: str = "/notebooks/nubank/"
     overwrite_output_dir: bool = True
     save_total_limit: int = 1
-    evaluation_strategy: str = "steps"
-    eval_steps: int = 5000
+    evaluation_strategy: str = "epoch"
     report_to: str = "wandb"
     remove_unused_columns: bool = False
     load_best_model_at_end: bool = True
