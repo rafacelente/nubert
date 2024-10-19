@@ -1,4 +1,5 @@
 from .nubert_config import NubertPreTrainConfig
+from .nubert_config import TrainerConfig
 import os
 
 NUBERT_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
