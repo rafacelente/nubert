@@ -51,7 +51,7 @@ class NuDataset(Dataset):
         self.prepare_samples()
 
     @classmethod
-    def from_confg(cls, config: NubertPreTrainConfig):
+    def from_config(cls, config: NubertPreTrainConfig):
         if not config.from_cleaned_data:
             return cls.from_raw_data(
                 fname=config.file_name,
