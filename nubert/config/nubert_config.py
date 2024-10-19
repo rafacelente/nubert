@@ -38,8 +38,8 @@ class NubertPreTrainConfig(BaseModel):
     randomize_column_order: bool = False
     from_cleaned_data: bool = False
     columns_to_drop: List[str] = ["Posted Date", "Year-Month", "Cardholder Last Name", "Cardholder First Initial", "Agency Number"]
-    filter_list: Optional[list[str]] = None,
-    agency_names_to_remove: List[str] = ["EMPLOYEE BENEFITS"],
+    filter_list: Optional[list[str]] = None
+    agency_names_to_remove: List[str] = ["EMPLOYEE BENEFITS"]
     nrows: Optional[int] = None
     trainer: TrainerConfig = TrainerConfig()
 
