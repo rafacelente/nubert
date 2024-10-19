@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 from pathlib import Path
-from nugpt import NuDataset
+from nubert import NuDataset
 import torch
 
 @pytest.fixture

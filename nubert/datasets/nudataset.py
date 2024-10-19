@@ -10,8 +10,8 @@ from scipy.ndimage import shift
 import torch
 from torch.utils.data.dataset import Dataset
 
-from nugpt.utils import divide_chunks, NuTable, DATA_TYPE_MAPPING
-from nugpt import NuTokenizer
+from nubert.utils import divide_chunks, NuTable, DATA_TYPE_MAPPING
+from nubert import NuTokenizer
 
 logger = logging.getLogger(__name__)
 log = logger
@@ -105,7 +105,7 @@ class NuDataset(Dataset):
             "max_seq_len": self.max_seq_len,
         }
         if verbose:
-            from nugpt.utils import print_dataset_summary
+            from nubert.utils import print_dataset_summary
             print_dataset_summary(info_dict)
 
     def format_trans(self, trans_lst: pd.Series, column_names: list[str]):

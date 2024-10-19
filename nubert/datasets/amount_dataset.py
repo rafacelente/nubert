@@ -7,9 +7,9 @@ import logging
 import torch
 from scipy.ndimage import shift
 
-from nugpt.utils import divide_chunks
-from nugpt.utils import DATA_TYPE_MAPPING
-from nugpt.datasets import NuDataset
+from nubert.utils import divide_chunks
+from nubert.utils import DATA_TYPE_MAPPING
+from nubert.datasets import NuDataset
 
 logger = logging.getLogger(__name__)
 log = logger
