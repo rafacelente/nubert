@@ -1,0 +1,24 @@
+model_name: "distilbert/distilbert-base-uncased"
+file_name: "nubank_raw.cleaned"
+dataset_path: "/notebooks/nubank/"
+max_length: 512
+num_transactions: 5
+stride: 1
+num_bins: 20
+randomize_column_order: False
+from_cleaned_data: True
+trainer:
+  learning_rate: 5e-5
+  num_train_epochs: 1.0
+  bf16: True
+  per_device_train_batch_size: 64
+  per_device_eval_batch_size: 64
+  output_dir: "/notebooks/nubank/"
+  overwrite_output_dir: True
+  save_total_limit: 1
+  evaluation_strategy: "steps"
+  eval_steps: 5000
+  report_to: "wandb"
+  remove_unused_columns: True
+  load_best_model_at_end: True
+  logging_steps: 5

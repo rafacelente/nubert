@@ -11,7 +11,8 @@ import torch
 from torch.utils.data.dataset import Dataset
 
 from nubert.utils import divide_chunks, NuTable, DATA_TYPE_MAPPING
-from nubert import NuTokenizer
+from nubert.tokenizer import NuTokenizer
+from nubert.config import NubertPreTrainConfig, NUBERT_DEFAULT_CONFIG_FILE
 
 logger = logging.getLogger(__name__)
 log = logger
@@ -27,6 +28,7 @@ class NuDataset(Dataset):
                  nrows: Optional[int] = None,
                  stride: int = 2,
                  use_pretrained_tokenizer: bool = False,
+                 randomize_column_order: bool = False,
     ):
         self.root = root
         self.fname = fname
@@ -35,6 +37,7 @@ class NuDataset(Dataset):
         self.stride = stride
         self.num_transaction_sequences = num_transaction_sequences
         self.max_seq_len = max_seq_len
+        self.randomize_column_order = randomize_column_order
         self.encoder_fit = {}
         self.trans_table : pd.DataFrame | None = None
         self.data = []
@@ -46,6 +49,41 @@ class NuDataset(Dataset):
         if not use_pretrained_tokenizer:
             self.init_tokenizer()
         self.prepare_samples()
+
+    @classmethod
+    def from_default_config(cls):
+        return cls.from_config_file(NUBERT_DEFAULT_CONFIG_FILE)
+
+    @classmethod
+    def from_config_file(
+        cls,
+        config_path: str
+    ):
+        config = NubertPreTrainConfig.from_yaml(config_path)
+        if not config.from_cleaned_data:
+            return cls.from_raw_data(
+                fname=config.file_name,
+                root=config.dataset_path,
+                filter_list=config.filter_list,
+                num_bins=config.num_bins,
+                columns_to_drop=config.columns_to_drop,
+                agency_names_to_remove=config.agency_names_to_remove,
+                num_transaction_sequences=config.num_transactions,
+                max_seq_len=config.max_length,
+                stride=config.stride,
+                randomize_column_order=config.randomize_column_order,
+                nrows=config.nrows
+            )
+        return cls.from_cleaned_data(
+            model_name=config.model_name,
+            root=config.dataset_path,
+            fname=config.file_name,
+            num_transaction_sequences=config.num_transactions,
+            max_seq_len=config.max_length,
+            stride=config.stride,
+            randomize_column_order=config.randomize_column_order,
+            nrows=config.nrows
+        )
 
     @classmethod
     def from_raw_data(
@@ -81,7 +119,7 @@ class NuDataset(Dataset):
     ):
         nudataset = cls(fname=fname, root=root, **kwargs)
         warnings = NuTable.validate_cleaned_data(nudataset.trans_table)
-        for warning in warnings:            
+        for warning in warnings:    
             log.warning(f"{warning}")
         return nudataset
 
@@ -137,7 +175,15 @@ class NuDataset(Dataset):
                         continue
                     flattened_sequence = []
                     for _, (_, transaction) in enumerate(group.iterrows()):
-                        flattened_sequence.extend(self.tokenizer.tokenize_transaction(transaction.to_dict(), column_order=['Agency Name', 'Vendor', 'Merchant Category Code (MCC)', 'Timestamp', 'Amount']))
+                        column_order = ['Agency Name', 'Vendor', 'Merchant Category Code (MCC)', 'Timestamp', 'Amount']
+                        if self.randomize_column_order:
+                            np.random.shuffle(column_order)
+                        flattened_sequence.extend(
+                            self.tokenizer.tokenize_transaction(
+                                transaction.to_dict(),
+                                column_order=column_order
+                            )
+                        )
                         if len(flattened_sequence) > self.max_seq_len:
                                 flattened_sequence = flattened_sequence[:self.max_seq_len]
                     self.data.append(flattened_sequence)
