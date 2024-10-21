@@ -10,6 +10,7 @@ from scipy.ndimage import shift
 
 from nubert.utils import divide_chunks, NuTable, DATA_TYPE_MAPPING
 from nubert.datasets import NuDataset
+from nubert.config import AmountConfig, AMOUNT_DEFAULT_CONFIG_FILE
 
 logger = logging.getLogger(__name__)
 log = logger
@@ -19,6 +20,45 @@ class AmountDataset(NuDataset):
         self.prediction_column = prediction_column
         self.labels = []
         super().__init__(use_pretrained_tokenizer=True, *args, **kwargs)
+
+    @classmethod
+    def from_config(cls, config: AmountConfig):
+        if not config.from_cleaned_data:
+            return cls.from_raw_data(
+                fname=config.file_name,
+                root=config.dataset_path,
+                filter_list=config.filter_list,
+                num_bins=config.num_bins,
+                columns_to_drop=config.columns_to_drop,
+                agency_names_to_remove=config.agency_names_to_remove,
+                num_transaction_sequences=config.num_transactions,
+                max_seq_len=config.max_length,
+                stride=config.stride,
+                randomize_column_order=config.randomize_column_order,
+                nrows=config.nrows
+            )
+        return cls.from_cleaned_data(
+            model_name=config.model_name,
+            root=config.dataset_path,
+            fname=config.file_name,
+            num_transaction_sequences=config.num_transactions,
+            max_seq_len=config.max_length,
+            stride=config.stride,
+            randomize_column_order=config.randomize_column_order,
+            nrows=config.nrows
+        )
+
+    @classmethod
+    def from_config_file(
+        cls,
+        config_path: str
+    ):
+        config = AmountConfig.from_yaml(config_path)
+        return cls.from_config(config)
+
+    @classmethod
+    def from_default_config(cls):
+        return cls.from_config_file(AMOUNT_DEFAULT_CONFIG_FILE)
 
     @classmethod
     def from_raw_data(
