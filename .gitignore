@@ -19,3 +19,5 @@ examples/
 test_*.ipynb
 preprocessed
 *.csv
+*wandb*
+*.ipynb_checkpoints
