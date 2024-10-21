@@ -134,14 +134,14 @@ class NuTable:
         bin_edges = np.logspace(log_min, log_max, num=num_bins+1, base=math.e) - 1
         bin_edges = np.concatenate([[-np.inf], [0], bin_edges, [np.inf]])
 
-        def quantize(x):
+        def _quantize(x):
             if x < 0:
                 return 0  # Bin for negative values (refunds)
             elif x == 0:
                 return 1  # Bin for zero values
             else:
                 return np.digitize(x, bin_edges) - 1
-        quant_inputs = np.array([quantize(x) for x in data])
+        quant_inputs = np.array([_quantize(x) for x in data])
         return quant_inputs, bin_edges
     
     @staticmethod
