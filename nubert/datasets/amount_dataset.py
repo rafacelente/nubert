@@ -1,3 +1,4 @@
+from typing import Optional, List
 from os import path
 import numpy as np
 import pandas as pd
@@ -7,8 +8,7 @@ import logging
 import torch
 from scipy.ndimage import shift
 
-from nubert.utils import divide_chunks
-from nubert.utils import DATA_TYPE_MAPPING
+from nubert.utils import divide_chunks, NuTable, DATA_TYPE_MAPPING
 from nubert.datasets import NuDataset
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,31 @@ class AmountDataset(NuDataset):
         self.prediction_column = prediction_column
         self.labels = []
         super().__init__(use_pretrained_tokenizer=True, *args, **kwargs)
+
+    @classmethod
+    def from_raw_data(
+        cls,
+        fname: str,
+        root: str = "./data/",
+        filter_list: Optional[list[str]] = None,
+        num_bins: int = 20,
+        columns_to_drop: List[str] = ["Posted Date", "Year-Month", "Cardholder Last Name", "Cardholder First Initial", "Agency Number"],
+        agency_names_to_remove: List[str] = ["EMPLOYEE BENEFITS"],
+        **kwargs
+    ):
+        df = pd.read_csv(path.join(root, f"{fname}.csv"))
+        log.info(f"cleaning and renaming columns in {fname}.csv")
+        df = NuTable.clean_all_and_rename_amount(
+            df=df,
+            num_bins=num_bins,
+            columns_to_drop=columns_to_drop,
+            agency_names_to_remove=agency_names_to_remove
+        )
+        if filter_list is not None and len(filter_list) > 0:
+            df = NuTable.filter_to_list_of_agency_names(df, filter_list)
+        df.to_csv(path.join(root, f"{fname}.cleaned.csv"), index=False)
+        log.info(f"saved cleaned data to {fname}.cleaned.csv")
+        return cls(fname=f"{fname}.cleaned", root=root, **kwargs)
 
     def __getitem__(self, index):
             input_ids = self.data[index]

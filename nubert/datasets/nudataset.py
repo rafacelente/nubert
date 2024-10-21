@@ -83,7 +83,7 @@ class NuDataset(Dataset):
         config_path: str
     ):
         config = NubertPreTrainConfig.from_yaml(config_path)
-        return cls.from_confg(config)
+        return cls.from_config(config)
 
     @classmethod
     def from_default_config(cls):

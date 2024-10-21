@@ -176,6 +176,30 @@ class NuTable:
         return df
     
     @staticmethod
+    def translate_timestamp(
+        df: pd.DataFrame,
+        time_column: str = "Transaction Date",
+        reference_month: int = 7,
+        reference_day: int = 1
+    ):
+        """
+            This is used for the amount fine-tuning and evaluation, where
+            the timestamps are not necessarily in the same year. This function
+            will encode the timestamp as the number of weeks since the reference.
+            By default, the Nubank dataset starts at 2013-07-01, so we use 07-01 as reference.
+        """
+        df['Timestamp'] = pd.to_datetime(df[time_column])        
+        df['ReferenceDate'] = df['Timestamp'].apply(lambda x: pd.Timestamp(x.year, reference_month, reference_day))
+        df['WeeksFromReference'] = ((df['Timestamp'] - df['ReferenceDate']).dt.days // 7)
+        df['WeeksFromReference'] = df['WeeksFromReference'] % 52
+        df['WeeksFromReference'] = (df['WeeksFromReference'] + 52) % 52
+        
+        df['Timestamp'] = df['WeeksFromReference']
+        df = df.drop(columns=['ReferenceDate', 'WeeksFromReference'])
+
+        return df
+
+    @staticmethod
     def fill_na(
         df: pd.DataFrame,
         fill_value: str = "Unknown",
@@ -191,7 +215,6 @@ class NuTable:
     @staticmethod
     def clean_all_and_rename(
             df: pd.DataFrame,
-            column_map: Optional[Dict[str, str]] = None,
             column_order: Optional[List[str]] = None,
             agency_names_to_remove: List[str] = ["EMPLOYEE BENEFITS"],
             columns_to_drop: List[str] = ["Posted Date", "Year-Month", "Cardholder Last Name", "Cardholder First Initial", "Agency Number"],
@@ -209,6 +232,29 @@ class NuTable:
         df_copy = NuTable.encode_amount(df_copy, num_bins)
         df_copy = NuTable.encode_timestamp(df_copy)
         # df_copy = NuTable.rename_columns(df_copy, column_map)
+        df_copy = NuTable.reorder_columns(df_copy, column_order)
+        return df_copy
+    
+    @staticmethod
+    def clean_all_and_rename_amount(
+        df: pd.DataFrame,
+        column_order: Optional[List[str]] = None,
+        agency_names_to_remove: List[str] = ["EMPLOYEE BENEFITS"],
+        columns_to_drop: List[str] = ["Posted Date", "Year-Month", "Cardholder Last Name", "Cardholder First Initial", "Agency Number"],
+        num_bins: int = 20,
+    ):
+        df_copy = df.copy()
+        df_copy = NuTable.clean_unnamed(df_copy)
+        df_copy = df_copy.dropna()
+        df_copy = NuTable.clean_discrepant_names(df_copy)
+        df_copy = NuTable.clean_dates(df_copy)
+        df_copy = NuTable.clean_amount(df_copy)
+        df_copy = NuTable.clean_refunds(df_copy)
+        df_copy = NuTable.strip_agencies(df_copy, agency_names_to_remove)
+        df_copy = NuTable.drop_columns(df_copy, columns_to_drop)
+        df_copy = NuTable.fill_na(df_copy)
+        df_copy = NuTable.encode_amount(df_copy, num_bins)
+        df_copy = NuTable.translate_timestamp(df_copy)
         df_copy = NuTable.reorder_columns(df_copy, column_order)
         return df_copy
     
