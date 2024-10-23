@@ -29,7 +29,7 @@ class NubertPreTrainConfig(BaseModel):
     model_config  = ConfigDict(protected_namespaces=())
     model_name: str = "distilbert/distilbert-base-uncased"
     file_name: str = "nubank_raw"
-    run_name: str = "nubert-distil-transactions-5-stride-1-randomize-False-bins-20"
+    run_name: str = " "
     dataset_path: str = "/notebooks/nubank/"
     max_length: int = 512
     num_transactions: int = 5
@@ -57,7 +57,7 @@ class NubertPreTrainConfig(BaseModel):
 
     @model_validator(mode="after")
     def set_run_name(self) -> Self:
-        self.run_name = f"nubert-distil-transactions-{self.num_transactions}-stride-{self.stride}-randomize-{self.randomize_column_order}-bins-{self.num_bins}"
+        self.run_name = f"{self.run_name}-nubert-distil-transactions-{self.num_transactions}-stride-{self.stride}-randomize-{self.randomize_column_order}-bins-{self.num_bins}"
         return self
 
     @model_validator(mode="after")
