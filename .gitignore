@@ -20,4 +20,6 @@ test_*.ipynb
 preprocessed
 *.csv
 *wandb*
-*.ipynb_checkpoints
+*.ipynb_checkpoints*
+*.png
+*.txt
